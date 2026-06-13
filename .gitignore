@@ -1,0 +1,30 @@
+# Database
+anesthesia.db
+anesthesia.db.*
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+.env
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Exports (large files)
+exports/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace

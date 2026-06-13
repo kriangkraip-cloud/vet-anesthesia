@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patient Registration — Vet Anesthesia Records</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <header class="app-header">
+    <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+    <a href="/dashboard" class="logo">🏥 <span>VetAnesthesia</span></a>
+    <div class="header-right">
+      <span class="autosave-indicator" id="save-indicator"></span>
+      <button class="btn btn-ghost btn-sm" onclick="toggleTheme()">🌙</button>
+      <button class="btn btn-outline btn-sm" onclick="logout()">Sign Out</button>
+    </div>
+  </header>
+
+  <nav class="sidebar" id="sidebar">
+    <ul class="sidebar-nav">
+      <li class="sidebar-section">Navigation</li>
+      <li><a href="/dashboard"><span class="icon">📋</span>Dashboard</a></li>
+      <li><a href="/patient?mode=new" class="active"><span class="icon">➕</span>New Patient</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <div class="flex items-center justify-between mb-3" style="flex-wrap:wrap;gap:0.5rem">
+      <div>
+        <h1 style="font-size:1.3rem;font-weight:700" id="page-title">New Patient Registration</h1>
+        <p class="text-sm text-muted" id="page-subtitle">Fill in patient signalment and case details</p>
+      </div>
+      <a href="/dashboard" class="btn btn-outline btn-sm">← Back to Dashboard</a>
+    </div>
+
+    <!-- Patient Signalment -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">🐾 Patient Signalment</h2>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>HN <span class="required">*</span></label>
+          <input type="text" id="hn" placeholder="e.g. VET-2024-001" required>
+        </div>
+        <div class="form-group">
+          <label>Patient Name <span class="required">*</span></label>
+          <input type="text" id="name" placeholder="Patient name">
+        </div>
+        <div class="form-group">
+          <label>Species</label>
+          <input type="text" id="species" list="species-dl" placeholder="e.g. Dog, Cat, Rabbit…">
+          <datalist id="species-dl">
+            <option value="Dog">
+            <option value="Cat">
+            <option value="Rabbit">
+            <option value="Guinea Pig">
+            <option value="Bird">
+            <option value="Reptile">
+            <option value="Ferret">
+            <option value="Hamster">
+            <option value="Exotic">
+            <option value="Other">
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label>Breed</label>
+          <input type="text" id="breed" placeholder="Breed">
+        </div>
+        <div class="form-group">
+          <label>Sex</label>
+          <select id="sex">
+            <option value="">Select…</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Neuter Status</label>
+          <select id="neuter_status">
+            <option value="">Select…</option>
+            <option value="Intact">Intact</option>
+            <option value="Neutered">Neutered / Spayed</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Age</label>
+          <input type="text" id="age" placeholder="e.g. 3 years 2 months">
+        </div>
+        <div class="form-group">
+          <label>Body Weight (kg)</label>
+          <input type="number" id="weight" placeholder="0.0" step="0.01" min="0">
+        </div>
+        <div class="form-group span-2">
+          <label>Owner Name</label>
+          <input type="text" id="owner_name" placeholder="Owner's full name">
+        </div>
+      </div>
+    </div>
+
+    <!-- Case Information -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">📅 Case Information</h2>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="record_date">
+        </div>
+        <div class="form-group">
+          <label>Diagnosis</label>
+          <input type="text" id="diagnosis" placeholder="Primary diagnosis">
+        </div>
+        <div class="form-group span-2">
+          <label>Surgical Procedure</label>
+          <input type="text" id="surgical_procedure" placeholder="Planned procedure">
+        </div>
+        <div class="form-group">
+          <label>Surgeon</label>
+          <input type="text" id="surgeon" placeholder="Surgeon name" list="user-list">
+        </div>
+        <div class="form-group">
+          <label>Anesthesiologist</label>
+          <input type="text" id="anesthesiologist" placeholder="Anesthesiologist name" list="user-list">
+        </div>
+        <div class="form-group">
+          <label>Assistant / Nurse</label>
+          <input type="text" id="assistant" placeholder="Assistant name">
+        </div>
+      </div>
+      <datalist id="user-list"></datalist>
+    </div>
+
+    <!-- Records list for existing patients -->
+    <div class="card hidden" id="records-card">
+      <div class="card-header">
+        <h2 class="card-title">📋 Anesthetic Records</h2>
+        <button class="btn btn-primary btn-sm" id="new-record-btn">+ New Anesthetic Record</button>
+      </div>
+      <div id="records-list"></div>
+    </div>
+
+    <!-- Sticky save bar -->
+    <div class="sticky-save-bar">
+      <span class="text-sm text-muted" id="form-hint">All fields marked * are required</span>
+      <div class="flex gap-2">
+        <button class="btn btn-danger hidden" id="delete-btn" onclick="deletePatient()">🗑 Delete Patient</button>
+        <button class="btn btn-outline" onclick="window.location.href='/dashboard'">Cancel</button>
+        <button class="btn btn-primary" id="save-btn" onclick="savePatient()">💾 Save Patient</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/static/js/api.js"></script>
+<script>
+if (!requireAuth()) void 0;
+initSidebar();
+
+const params = new URLSearchParams(location.search);
+const mode = params.get("mode"); // "new" or "edit"
+const patientId = params.get("id");
+let currentPatient = null;
+
+// Set today's date
+document.getElementById("record_date").value = new Date().toISOString().slice(0, 10);
+
+// Populate user list for autocomplete
+API.listUsers().then(users => {
+  const dl = document.getElementById("user-list");
+  users.forEach(u => {
+    const opt = document.createElement("option");
+    opt.value = u.full_name || u.username;
+    dl.appendChild(opt);
+  });
+}).catch(() => {});
+
+async function loadPatient(id) {
+  try {
+    currentPatient = await API.getPatient(id);
+    document.getElementById("page-title").textContent = `Edit Patient — ${currentPatient.hn}`;
+    document.getElementById("page-subtitle").textContent = `${currentPatient.name} · ${currentPatient.species || ""}`;
+    document.getElementById("save-btn").textContent = "💾 Update Patient";
+    document.getElementById("delete-btn").classList.remove("hidden");
+
+    // Populate fields
+    ["hn","name","species","breed","sex","neuter_status","age","owner_name"].forEach(f => {
+      const el = document.getElementById(f);
+      if (el) el.value = currentPatient[f] || "";
+    });
+    document.getElementById("weight").value = currentPatient.weight || "";
+
+    // Hide case info card (those fields belong to individual records)
+    const caseCard = document.querySelector(".card:nth-of-type(2)");
+    if (caseCard && caseCard.querySelector("#record_date")) caseCard.style.display = "none";
+
+    // Load records for this patient
+    loadPatientRecords(id);
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function deletePatient() {
+  if (!currentPatient) return;
+  const confirmed = confirm(
+    `Are you sure you want to delete patient "${currentPatient.name}" (${currentPatient.hn})?\n\nThis will permanently remove the patient and ALL their anesthetic records.\n\nThis action cannot be undone.`
+  );
+  if (!confirmed) return;
+  try {
+    await API.deletePatient(currentPatient.id);
+    toast("Patient deleted", "success");
+    setTimeout(() => { window.location.href = "/dashboard"; }, 1200);
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function loadPatientRecords(patientId) {
+  try {
+    const records = await API.listRecords({ patient_id: patientId });
+    const card = document.getElementById("records-card");
+    const list = document.getElementById("records-list");
+    card.classList.remove("hidden");
+
+    document.getElementById("new-record-btn").onclick = () => createNewRecord(patientId);
+
+    if (records.length === 0) {
+      list.innerHTML = `<p class="text-muted text-sm" style="padding:0.75rem">No records yet. Click "+ New Anesthetic Record" to begin.</p>`;
+      return;
+    }
+
+    list.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Procedure</th><th>Surgeon</th><th>Anesthesiologist</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>${records.map(r => `
+        <tr>
+          <td>${r.record_date ? new Date(r.record_date).toLocaleDateString("en-GB") : "—"}</td>
+          <td>${r.surgical_procedure || "—"}</td>
+          <td>${r.surgeon || "—"}</td>
+          <td>${r.anesthesiologist || "—"}</td>
+          <td><span class="badge badge-${r.status || "draft"}">${r.status || "draft"}</span></td>
+          <td><a href="/record?id=${r.id}" class="btn btn-primary btn-sm">Open</a></td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>`;
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function createNewRecord(patientId) {
+  try {
+    const record = await API.createRecord({
+      patient_id: parseInt(patientId),
+      record_date: new Date().toISOString().slice(0, 10),
+      status: "draft",
+      surgeon: document.getElementById("surgeon").value || "",
+      anesthesiologist: document.getElementById("anesthesiologist").value || "",
+      assistant: document.getElementById("assistant").value || "",
+      surgical_procedure: document.getElementById("surgical_procedure").value || "",
+      diagnosis: document.getElementById("diagnosis").value || "",
+      weight_at_record: parseFloat(document.getElementById("weight").value) || null,
+    });
+    window.location.href = `/record?id=${record.id}`;
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function savePatient() {
+  const hn = document.getElementById("hn").value.trim();
+  const name = document.getElementById("name").value.trim();
+  if (!hn) { toast("HN is required", "warning"); document.getElementById("hn").focus(); return; }
+  if (!name) { toast("Patient name is required", "warning"); document.getElementById("name").focus(); return; }
+
+  const data = {
+    hn, name,
+    species: document.getElementById("species").value || null,
+    breed: document.getElementById("breed").value || null,
+    sex: document.getElementById("sex").value || null,
+    neuter_status: document.getElementById("neuter_status").value || null,
+    age: document.getElementById("age").value || null,
+    weight: parseFloat(document.getElementById("weight").value) || null,
+    owner_name: document.getElementById("owner_name").value || null,
+  };
+
+  const ind = document.getElementById("save-indicator");
+  ind.textContent = "⏳ Saving…"; ind.className = "autosave-indicator saving";
+  document.getElementById("save-btn").disabled = true;
+
+  try {
+    let patient;
+    if (currentPatient) {
+      patient = await API.updatePatient(currentPatient.id, data);
+      toast("Patient updated!", "success");
+    } else {
+      patient = await API.createPatient(data);
+      toast("Patient registered!", "success");
+
+      // If case details were filled, create a record immediately
+      const hasCase = document.getElementById("surgical_procedure").value ||
+                      document.getElementById("diagnosis").value;
+      if (hasCase) {
+        const record = await API.createRecord({
+          patient_id: patient.id,
+          record_date: document.getElementById("record_date").value || new Date().toISOString().slice(0, 10),
+          status: "draft",
+          surgeon: document.getElementById("surgeon").value || "",
+          anesthesiologist: document.getElementById("anesthesiologist").value || "",
+          assistant: document.getElementById("assistant").value || "",
+          surgical_procedure: document.getElementById("surgical_procedure").value || "",
+          diagnosis: document.getElementById("diagnosis").value || "",
+          weight_at_record: data.weight,
+        });
+        window.location.href = `/record?id=${record.id}`;
+        return;
+      }
+      window.location.href = `/patient?id=${patient.id}`;
+      return;
+    }
+    ind.textContent = "✓ Saved"; ind.className = "autosave-indicator saved";
+  } catch (err) {
+    toast(err.message, "error");
+    ind.textContent = "✗ Error"; ind.className = "autosave-indicator";
+  } finally {
+    document.getElementById("save-btn").disabled = false;
+  }
+}
+
+// Load existing patient or set up new form
+if (patientId) {
+  loadPatient(patientId);
+}
+</script>
+</body>
+</html>

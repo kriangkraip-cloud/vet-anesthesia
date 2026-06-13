@@ -1,0 +1,1849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anesthetic Record — Vet Anesthesia</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Drug preset datalist (shared across all tabs) -->
+<datalist id="drug-preset-dl">
+  <option value="midazolam">
+  <option value="diazepam">
+  <option value="xylazine">
+  <option value="medetomidine">
+  <option value="dexmedetomidine">
+  <option value="acepromazine (dilute)">
+  <option value="ketamine">
+  <option value="propofol">
+  <option value="etomidate">
+  <option value="alfaxalone">
+  <option value="lidocaine">
+  <option value="bupivacaine">
+  <option value="morphine">
+  <option value="fentanyl (5ug/mL)">
+  <option value="buprenorphine">
+  <option value="butorphanol [2]">
+  <option value="butorphanol [10]">
+  <option value="atropine">
+  <option value="glycopyrrolate">
+  <option value="epinephrine">
+  <option value="dopamine">
+  <option value="dobutamine">
+  <option value="furosemide">
+  <option value="metoclopramide">
+  <option value="maropitant">
+  <option value="tramadol">
+  <option value="meloxicam">
+  <option value="carprofen">
+</datalist>
+
+<div class="app-layout">
+
+  <!-- Header -->
+  <header class="app-header">
+    <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+    <a href="/dashboard" class="logo">🏥 <span>VetAnesthesia</span></a>
+    <div class="header-right" style="gap:0.5rem">
+      <div class="autosave-indicator" id="save-indicator"></div>
+      <!-- Mini timers in header -->
+      <div style="display:flex;gap:0.75rem;font-size:0.75rem;align-items:center">
+        <div style="text-align:center;line-height:1.1">
+          <div style="color:var(--text-muted)">ANES</div>
+          <div id="anes-timer-hdr" style="font-family:monospace;font-weight:700;color:var(--success)">00:00</div>
+        </div>
+        <div style="text-align:center;line-height:1.1">
+          <div style="color:var(--text-muted)">SURG</div>
+          <div id="surg-timer-hdr" style="font-family:monospace;font-weight:700;color:var(--primary)">00:00</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="toggleTheme()">🌙</button>
+      <button class="btn btn-outline btn-sm" onclick="logout()">Sign Out</button>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <ul class="sidebar-nav">
+      <li class="sidebar-section">Record Sections</li>
+      <li><a href="#" onclick="switchTab('pre')">📊 Pre-Anesthetic</a></li>
+      <li><a href="#" onclick="switchTab('premed')">💊 Premedication</a></li>
+      <li><a href="#" onclick="switchTab('induction')">🔬 Induction</a></li>
+      <li><a href="#" onclick="switchTab('local')">📍 Local Anesthesia</a></li>
+      <li><a href="#" onclick="switchTab('equipment')">⚙️ Airway & Equipment</a></li>
+      <li><a href="#" onclick="switchTab('monitoring')">📈 Monitoring</a></li>
+      <li><a href="#" onclick="switchTab('fluids')">💧 Fluids & CRI</a></li>
+      <li><a href="#" onclick="switchTab('recovery')">🛏 Recovery</a></li>
+      <li class="sidebar-section">Export</li>
+      <li><a href="#" onclick="doExport('pdf')">📄 Export PDF</a></li>
+      <li><a href="#" onclick="doExport('docx')">📝 Export Word</a></li>
+      <li class="sidebar-section">Navigation</li>
+      <li><a href="/dashboard">← Dashboard</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main -->
+  <main class="main-content" style="padding-bottom:100px">
+
+    <!-- Patient banner -->
+    <div class="card mb-3" style="padding:0.75rem 1rem">
+      <div class="flex items-center justify-between" style="flex-wrap:wrap;gap:0.5rem">
+        <div class="flex items-center gap-3">
+          <div>
+            <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600">HN</div>
+            <div style="font-size:1.1rem;font-weight:700;color:var(--primary)" id="banner-hn">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.75rem;color:var(--text-muted);font-weight:600">Patient</div>
+            <div style="font-size:1rem;font-weight:600" id="banner-name">—</div>
+          </div>
+          <div class="text-sm text-muted" id="banner-signalment"></div>
+          <span class="badge" id="banner-status">draft</span>
+        </div>
+        <div class="flex gap-2" style="flex-wrap:wrap">
+          <select id="status-select" class="btn btn-outline btn-sm" onchange="updateStatus()" style="padding:0.3rem 0.5rem;cursor:pointer">
+            <option value="draft">Draft</option>
+            <option value="ongoing">Ongoing</option>
+            <option value="completed">Completed</option>
+            <option value="exported">Exported</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="edit-patient-btn" onclick="editPatient()">✏ Edit Patient</button>
+          <button class="btn btn-outline btn-sm" onclick="doExport('pdf')">📄 PDF</button>
+          <button class="btn btn-outline btn-sm" onclick="doExport('docx')">📝 Word</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs" id="main-tabs">
+      <button class="tab-btn active" onclick="switchTab('pre')" id="tab-pre">📊 Pre</button>
+      <button class="tab-btn" onclick="switchTab('premed')" id="tab-premed">💊 Premed</button>
+      <button class="tab-btn" onclick="switchTab('induction')" id="tab-induction">🔬 Induction</button>
+      <button class="tab-btn" onclick="switchTab('local')" id="tab-local">📍 Local</button>
+      <button class="tab-btn" onclick="switchTab('equipment')" id="tab-equipment">⚙️ Airway</button>
+      <button class="tab-btn" onclick="switchTab('monitoring')" id="tab-monitoring">📈 Monitoring</button>
+      <button class="tab-btn" onclick="switchTab('fluids')" id="tab-fluids">💧 Fluids</button>
+      <button class="tab-btn" onclick="switchTab('recovery')" id="tab-recovery">🛏 Recovery</button>
+    </div>
+
+    <!-- ── TAB: Pre-Anesthetic Evaluation ──────────────────── -->
+    <div class="tab-panel active" id="panel-pre">
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">📊 Pre-Anesthetic Evaluation</h2></div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>ASA Status</label>
+            <select id="asa_status">
+              <option value="">Select ASA…</option>
+              <option value="ASA I">ASA I — Normal healthy</option>
+              <option value="ASA II">ASA II — Mild systemic disease</option>
+              <option value="ASA III">ASA III — Severe systemic disease</option>
+              <option value="ASA IV">ASA IV — Life-threatening</option>
+              <option value="ASA V">ASA V — Moribund</option>
+              <option value="ASA E">ASA E — Emergency</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Body Weight at Record (kg)</label>
+            <input type="number" id="weight_at_record" placeholder="kg" step="0.01" oninput="updateWeightCalcs()">
+          </div>
+          <div class="form-group"><label>PCV (%)</label><input type="number" id="pcv" placeholder="%" step="0.1"></div>
+          <div class="form-group"><label>BUN (mg/dL)</label><input type="number" id="bun" placeholder="mg/dL" step="0.1"></div>
+          <div class="form-group"><label>Creatinine (mg/dL)</label><input type="number" id="creatinine" placeholder="mg/dL" step="0.01"></div>
+          <div class="form-group"><label>AST (U/L)</label><input type="number" id="ast" placeholder="U/L" step="0.1"></div>
+          <div class="form-group"><label>ALT (U/L)</label><input type="number" id="alt" placeholder="U/L" step="0.1"></div>
+          <div class="form-group">
+            <label>CRT</label>
+            <select id="crt">
+              <option value="">Select…</option>
+              <option>&lt;2 sec (Normal)</option>
+              <option>2–3 sec (Borderline)</option>
+              <option>&gt;3 sec (Prolonged)</option>
+            </select>
+          </div>
+          <div class="form-group"><label>HR (bpm)</label><input type="number" id="hr_pre" placeholder="bpm"></div>
+          <div class="form-group"><label>RR (/min)</label><input type="number" id="rr_pre" placeholder="/min"></div>
+          <div class="form-group">
+            <label>Pulse Quality</label>
+            <select id="pulse_quality">
+              <option value="">Select…</option>
+              <option>Strong</option><option>Moderate</option>
+              <option>Weak</option><option>Thready</option><option>Bounding</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Temperature (°C)</label><input type="number" id="temp_pre" placeholder="°C" step="0.1"></div>
+          <div class="form-group span-full"><label>Current Medications</label>
+            <textarea id="current_medications" rows="2" placeholder="List current medications…"></textarea></div>
+          <div class="form-group span-full"><label>Clinical Notes</label>
+            <textarea id="clinical_notes" rows="2" placeholder="Important clinical findings…"></textarea></div>
+          <div class="form-group span-full"><label>Anesthetic Concerns</label>
+            <textarea id="anesthetic_concerns" rows="2" placeholder="Specific anesthetic concerns or considerations…"></textarea></div>
+          <div class="form-group span-full"><label>Risk Assessment</label>
+            <textarea id="risk_assessment" rows="2" placeholder="Overall risk assessment and anesthetic plan…"></textarea></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">📋 Case Details</h2></div>
+        <div class="form-grid">
+          <div class="form-group"><label>Date</label><input type="date" id="record_date"></div>
+          <div class="form-group span-2"><label>Diagnosis</label>
+            <input type="text" id="diagnosis" placeholder="Primary diagnosis"></div>
+          <div class="form-group span-3"><label>Surgical Procedure</label>
+            <input type="text" id="surgical_procedure" placeholder="Planned or performed procedure"></div>
+          <div class="form-group"><label>Surgeon</label>
+            <input type="text" id="surgeon" placeholder="Surgeon name" list="user-dl"></div>
+          <div class="form-group"><label>Anesthesiologist</label>
+            <input type="text" id="anesthesiologist" placeholder="Anesthesiologist name" list="user-dl"></div>
+          <div class="form-group"><label>Assistant / Nurse</label>
+            <input type="text" id="assistant" placeholder="Assistant name"></div>
+        </div>
+        <datalist id="user-dl"></datalist>
+      </div>
+    </div>
+
+    <!-- ── TAB: Premedication (+ Antibiotic) ───────────────── -->
+    <div class="tab-panel" id="panel-premed">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">💊 Premedication</h2>
+          <button class="btn btn-primary btn-sm" onclick="addDrugRow('premedication','premed-list')">+ Add Drug</button>
+        </div>
+        <p class="section-subtitle">Body weight: <strong id="premed-weight">—</strong> kg &nbsp;|&nbsp;
+          Select drug from list — concentration auto-fills. Calculated doses update when BW and drug data are entered.</p>
+        <div id="premed-list"></div>
+        <div class="mt-3">
+          <label>Quality of Premedication</label>
+          <select id="premed_quality" style="max-width:260px;margin-top:0.3rem">
+            <option value="">Select quality…</option>
+            <option>Excellent</option><option>Good</option>
+            <option>Adequate</option><option>Poor</option><option>Unsatisfactory</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Antibiotic section (merged here) -->
+      <div class="card" style="border-left:3px solid var(--accent)">
+        <div class="card-header">
+          <h2 class="card-title" style="color:var(--accent)">🧫 Prophylactic Antibiotic</h2>
+          <button class="btn btn-sm" style="background:var(--accent);color:#fff" onclick="addDrugRow('antibiotic','antibiotic-list')">+ Add Antibiotic</button>
+        </div>
+        <div id="antibiotic-list"></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Induction ──────────────────────────────────── -->
+    <div class="tab-panel" id="panel-induction">
+
+      <!-- Start Anesthesia card -->
+      <div class="card" style="border:2px solid var(--success)">
+        <div class="flex items-center gap-3 flex-wrap">
+          <button class="btn btn-success" style="font-size:1rem;padding:0.6rem 1.2rem" onclick="markAnesthesiaStart()">
+            ▶ Start Anesthesia
+          </button>
+          <div style="line-height:1.3">
+            <div style="font-size:0.75rem;color:var(--text-muted)">ANESTHESIA START</div>
+            <div style="font-weight:700;font-size:1rem" id="anes-start-display">—</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:0.7rem;color:var(--text-muted)">ELAPSED</div>
+            <div class="timer-display" id="anes-timer">00:00:00</div>
+          </div>
+        </div>
+        <div class="flex gap-1 mt-2 items-center" style="font-size:0.85rem">
+          <span class="text-muted">Manual edit:</span>
+          <input type="datetime-local" id="anesthesia_start" style="font-size:0.85rem">
+          <button class="btn btn-outline btn-sm" onclick="setNowField('anesthesia_start')">Now</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🔬 Induction Drugs</h2>
+          <button class="btn btn-primary btn-sm" onclick="addDrugRow('induction','induction-list')">+ Add Drug</button>
+        </div>
+        <div id="induction-list"></div>
+
+        <!-- Gas induction -->
+        <div class="card mt-3" style="background:var(--bg)">
+          <div class="card-header" style="border-color:var(--accent)">
+            <h3 class="card-title" style="color:var(--accent);font-size:0.9rem">Gas Induction Option</h3>
+          </div>
+          <div class="form-grid form-grid-3">
+            <div class="form-group">
+              <label>Induction Method</label>
+              <select id="induction_method">
+                <option value="">None / IV only</option>
+                <option value="Facemask">Facemask</option>
+                <option value="Box induction">Box induction</option>
+                <option value="Nasal cannula">Nasal cannula</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Gas Type</label>
+              <select id="vaporizer_gas_ind">
+                <option value="">Select…</option>
+                <option>Isoflurane</option><option>Sevoflurane</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>O₂ Flow Rate (L/min)</label>
+              <input type="number" id="o2_ind" step="0.1" placeholder="L/min">
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <label>Quality of Induction</label>
+          <select id="induction_quality" style="max-width:260px;margin-top:0.3rem">
+            <option value="">Select quality…</option>
+            <option>Excellent</option><option>Good</option>
+            <option>Adequate</option><option>Rough</option><option>Complicated</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Local Anesthesia ───────────────────────────── -->
+    <div class="tab-panel" id="panel-local">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">📍 Local / Regional Anesthesia</h2>
+          <button class="btn btn-primary btn-sm" onclick="addDrugRow('local_anesthesia','local-list')">+ Add Block</button>
+        </div>
+        <div id="local-list"></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Airway & Equipment ────────────────────────── -->
+    <div class="tab-panel" id="panel-equipment">
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">⚙️ Airway & Equipment</h2></div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>O₂ Flow Rate (L/min)</label>
+            <input type="number" id="o2_flow_rate" step="0.1" placeholder="L/min">
+          </div>
+          <div class="form-group">
+            <label>Anesthetic Machine</label>
+            <select id="anesthetic_machine">
+              <option value="">Select…</option>
+              <option>Circle rebreathing</option><option>Non-rebreathing (Bain)</option>
+              <option>Magill</option><option>Lack</option><option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Breathing System</label>
+            <select id="breathing_system">
+              <option value="">Select…</option>
+              <option>Rebreathing</option><option>Non-rebreathing</option>
+              <option>IPPV / Ventilator</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Gas / Vaporizer</label>
+            <select id="vaporizer_gas">
+              <option value="">Select…</option>
+              <option>Isoflurane</option><option>Sevoflurane</option>
+              <option>Desflurane</option><option>Halothane</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Airway Device</label>
+            <select id="airway_device">
+              <option value="">Select…</option>
+              <option>Endotracheal tube (ETT)</option>
+              <option>Supraglottic airway (LMA)</option>
+              <option>Face mask</option>
+              <option>None (TIVA)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>ETT Size (mm ID)</label>
+            <input type="number" id="ett_size" step="0.5" placeholder="mm" style="max-width:120px">
+          </div>
+          <div class="form-group span-full">
+            <label>Intubation Note</label>
+            <textarea id="intubation_note" rows="2" placeholder="Intubation technique, attempts, difficulties…"></textarea>
+          </div>
+          <div class="form-group span-full">
+            <label>Complication During Induction</label>
+            <textarea id="induction_complication" rows="2" placeholder="Any complications during induction phase…"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Monitoring ─────────────────────────────────── -->
+    <div class="tab-panel" id="panel-monitoring">
+
+      <!-- 1. Start Procedure / Timers -->
+      <div class="card" style="border:2px solid var(--success)">
+        <div class="flex items-center gap-3 flex-wrap">
+          <button class="btn btn-success" style="font-size:1rem;padding:0.6rem 1.2rem" onclick="markSurgeryStart()" id="btn-start-proc">
+            ▶ Start Procedure
+          </button>
+          <div style="line-height:1.3">
+            <div style="font-size:0.75rem;color:var(--text-muted)">PROCEDURE START</div>
+            <div style="font-weight:700;font-size:1rem" id="surg-start-display">—</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:0.7rem;color:var(--text-muted)">SURGERY</div>
+            <div class="timer-display" id="surg-timer">00:00:00</div>
+          </div>
+          <div style="text-align:center;margin-left:auto">
+            <div style="font-size:0.7rem;color:var(--text-muted)">ANESTHESIA</div>
+            <div class="timer-display" id="anes-timer-mon">00:00:00</div>
+          </div>
+        </div>
+        <div class="flex gap-1 mt-2 items-center" style="font-size:0.85rem">
+          <span class="text-muted">Procedure start:</span>
+          <input type="datetime-local" id="surgery_start" style="font-size:0.85rem">
+          <button class="btn btn-outline btn-sm" onclick="setNowField('surgery_start')">Now</button>
+        </div>
+      </div>
+
+      <!-- 2. Add Monitoring Entry -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">📈 Add Monitoring Entry</h2>
+          <div class="flex gap-2 items-center">
+            <label style="text-transform:none;font-size:0.8rem;font-weight:500;margin:0">Interval:</label>
+            <select id="mon-interval" style="width:100px;padding:0.3rem">
+              <option value="5">5 min</option><option value="10">10 min</option>
+              <option value="15">15 min</option><option value="custom">Custom</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Quick vital cards -->
+        <div class="monitoring-grid mb-3" id="vitals-display">
+          <div class="vital-card" id="vc-hr"><div class="vital-label">HR</div><div class="vital-value">—</div><div class="vital-unit">bpm</div></div>
+          <div class="vital-card" id="vc-rr"><div class="vital-label">RR</div><div class="vital-value">—</div><div class="vital-unit">/min</div></div>
+          <div class="vital-card" id="vc-spo2"><div class="vital-label">SpO₂</div><div class="vital-value">—</div><div class="vital-unit">%</div></div>
+          <div class="vital-card" id="vc-map"><div class="vital-label">MAP</div><div class="vital-value">—</div><div class="vital-unit">mmHg</div></div>
+          <div class="vital-card" id="vc-gas"><div class="vital-label">Gas%</div><div class="vital-value">—</div><div class="vital-unit">%</div></div>
+          <div class="vital-card" id="vc-fluid"><div class="vital-label">Fluid</div><div class="vital-value">—</div><div class="vital-unit">mL/hr</div></div>
+        </div>
+
+        <!-- Entry form -->
+        <div class="drug-entry">
+          <div class="form-grid form-grid-4">
+            <div class="form-group">
+              <label>Time <button class="btn btn-ghost btn-sm" style="padding:0;font-size:0.7rem" onclick="setNowMon()">Now</button></label>
+              <input type="datetime-local" id="mon-time">
+            </div>
+            <div class="form-group">
+              <label>Gas % (Iso/Sevo)</label>
+              <input type="number" id="mon-gas" step="0.1" placeholder="%" min="0" max="8">
+            </div>
+            <div class="form-group">
+              <label>HR (bpm)</label>
+              <input type="number" id="mon-hr" placeholder="bpm">
+            </div>
+            <div class="form-group">
+              <label>RR (/min)</label>
+              <input type="number" id="mon-rr" placeholder="/min">
+            </div>
+            <div class="form-group">
+              <label>SpO₂ (%)</label>
+              <input type="number" id="mon-spo2" placeholder="%" min="0" max="100">
+            </div>
+            <div class="form-group">
+              <label>SBP (mmHg)</label>
+              <input type="number" id="mon-sbp" placeholder="SBP" oninput="calcMAP()">
+            </div>
+            <div class="form-group">
+              <label>DBP (mmHg)</label>
+              <input type="number" id="mon-dbp" placeholder="DBP" oninput="calcMAP()">
+            </div>
+            <div class="form-group">
+              <label>MAP (mmHg)</label>
+              <input type="number" id="mon-map" placeholder="MAP" class="input-calculated">
+            </div>
+            <div class="form-group">
+              <label>EtCO₂ (mmHg)</label>
+              <input type="number" id="mon-etco2" placeholder="mmHg">
+            </div>
+            <div class="form-group">
+              <label>Temp (°C)</label>
+              <input type="number" id="mon-temp" step="0.1" placeholder="°C">
+            </div>
+            <div class="form-group">
+              <label>O₂ Flow (L/min)</label>
+              <input type="number" id="mon-o2" step="0.1" placeholder="L/min">
+            </div>
+            <div class="form-group">
+              <label>Fluid Rate (mL/hr)</label>
+              <input type="number" id="mon-fluid-rate" step="1" placeholder="mL/hr" min="0">
+            </div>
+            <div class="form-group">
+              <label>Ventilation Mode</label>
+              <select id="mon-vent">
+                <option value="">Select…</option>
+                <option value="Spontaneous">Spontaneous</option>
+                <option value="Assisted">Assisted</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="IPPV">IPPV</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Pulse Quality</label>
+              <select id="mon-pulse">
+                <option value="">—</option>
+                <option>Strong</option><option>Moderate</option>
+                <option>Weak</option><option>Thready</option>
+              </select>
+            </div>
+            <div class="form-group span-2">
+              <label>Note</label>
+              <input type="text" id="mon-note" placeholder="Any note for this timepoint…">
+            </div>
+          </div>
+          <button class="btn btn-success mt-2" onclick="addMonEntry()">✓ Record Vitals</button>
+        </div>
+      </div>
+
+      <!-- 3. Emergency Log (collapsible) -->
+      <details id="emergency-details">
+        <summary style="cursor:pointer;padding:0.75rem 1rem;background:var(--bg-card);border-radius:0.5rem;font-weight:600;color:var(--danger);margin-bottom:0.25rem;display:flex;align-items:center;gap:0.5rem">
+          🚨 Emergency Drug &amp; Event Log
+          <span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);margin-left:0.5rem">Click to expand</span>
+        </summary>
+        <div class="card" style="margin-top:0.25rem">
+          <div class="flex gap-2 mb-2 flex-wrap">
+            <button class="btn btn-danger btn-sm" onclick="addEmergencyRow()">+ Add Event</button>
+          </div>
+          <!-- Quick event buttons -->
+          <div class="flex gap-2 mb-3" style="flex-wrap:wrap">
+            <button class="btn btn-danger btn-sm" onclick="quickEvent('Atropine','Bradycardia')">Atropine</button>
+            <button class="btn btn-danger btn-sm" onclick="quickEvent('Epinephrine','Cardiac arrest')">Epinephrine</button>
+            <button class="btn btn-warning btn-sm" onclick="quickEvent('Fluid bolus','Hypotension')">Fluid Bolus</button>
+            <button class="btn btn-warning btn-sm" onclick="quickEvent('','Hypotension')">Hypotension</button>
+            <button class="btn btn-warning btn-sm" onclick="quickEvent('','Apnea')">Apnea</button>
+            <button class="btn btn-warning btn-sm" onclick="quickEvent('','Bradycardia')">Bradycardia</button>
+            <button class="btn btn-warning btn-sm" onclick="quickEvent('','Hypothermia')">Hypothermia</button>
+            <button class="btn btn-danger btn-sm" onclick="quickEvent('','Cardiac arrest')">Cardiac Arrest</button>
+            <button class="btn btn-danger btn-sm" onclick="quickEvent('','CPR initiated')">CPR</button>
+          </div>
+          <div id="emergency-list"></div>
+        </div>
+      </details>
+
+      <!-- 4. Monitoring Graph -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">📊 Monitoring Graph</h2>
+          <span class="text-sm text-muted">HR · RR · SBP · DBP · MAP · Gas%</span>
+        </div>
+        <div style="position:relative;height:320px">
+          <canvas id="chart-combined"></canvas>
+        </div>
+      </div>
+
+      <!-- 5. Monitoring Log -->
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">Monitoring Log</h2></div>
+        <div class="table-wrap">
+          <table id="mon-table">
+            <thead><tr>
+              <th>Time</th><th>Gas%</th><th>HR</th><th>RR</th><th>SpO₂</th>
+              <th>SBP</th><th>DBP</th><th>MAP</th><th>EtCO₂</th><th>Temp</th>
+              <th>O₂</th><th>Fluid(mL/h)</th><th>Mode</th><th>Note</th><th>Del</th>
+            </tr></thead>
+            <tbody id="mon-tbody"><tr><td colspan="15" style="text-align:center;padding:1rem;color:var(--text-muted)">No entries yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 6. Total Fluid -->
+      <div class="card" style="background:var(--bg);border:1px solid var(--border)">
+        <div class="flex items-center gap-3 flex-wrap">
+          <strong style="font-size:1.05rem">
+            Total IV Fluid: <span id="total-fluid" style="color:var(--primary);font-size:1.2rem">0.0</span> mL
+          </strong>
+          <span class="text-sm text-muted">(Rate × Surgical Time + Bolus — set details in Fluids tab)</span>
+        </div>
+      </div>
+
+      <!-- 7. Stop Procedure + Stop Anesthesia -->
+      <div class="card" style="border:2px solid var(--danger)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;flex-wrap:wrap">
+          <div>
+            <button class="btn btn-warning" style="font-size:1rem;width:100%;margin-bottom:0.5rem" onclick="markSurgeryEnd()">
+              ⏹ Stop Procedure
+            </button>
+            <div class="flex gap-1 items-center">
+              <input type="datetime-local" id="surgery_end" style="font-size:0.85rem;flex:1">
+              <button class="btn btn-outline btn-sm" onclick="setNowField('surgery_end')">Now</button>
+            </div>
+          </div>
+          <div>
+            <button class="btn btn-danger" style="font-size:1rem;width:100%;margin-bottom:0.5rem" onclick="markAnesthesiaEnd()">
+              ⏹ Stop Anesthesia
+            </button>
+            <div class="flex gap-1 items-center">
+              <input type="datetime-local" id="anesthesia_end" style="font-size:0.85rem;flex:1">
+              <button class="btn btn-outline btn-sm" onclick="setNowField('anesthesia_end')">Now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Countdown Alerts -->
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">⏰ Countdown Alerts</h2></div>
+        <div class="flex gap-2 items-center mb-3" style="flex-wrap:wrap">
+          <input type="text" id="alert-label" placeholder="Alert label (e.g. Antibiotic redose)" style="flex:1;min-width:160px">
+          <input type="number" id="alert-minutes" placeholder="Minutes" style="width:90px" min="1">
+          <button class="btn btn-warning btn-sm" onclick="addAlert()">+ Set Alert</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.5rem">
+          <button class="btn btn-outline btn-sm" onclick="quickAlert('BP check',10)">BP Check 10min</button>
+          <button class="btn btn-outline btn-sm" onclick="quickAlert('Antibiotic redose',60)">Antibiotic 60min</button>
+          <button class="btn btn-outline btn-sm" onclick="quickAlert('Fluid check',30)">Fluid check 30min</button>
+          <button class="btn btn-outline btn-sm" onclick="quickAlert('Temp check',15)">Temp check 15min</button>
+        </div>
+        <div id="alerts-list" class="mt-3" style="display:flex;flex-direction:column;gap:0.4rem"></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Fluids & CRI ────────────────────────────────── -->
+    <div class="tab-panel" id="panel-fluids">
+      <!-- IV Fluid type (simplified) -->
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">💧 IV Fluid Therapy</h2></div>
+        <div class="form-grid form-grid-2">
+          <div class="form-group">
+            <label>Fluid Type</label>
+            <select id="fluid-type-select">
+              <option value="Acetated Ringer's Solution">Acetated Ringer's Solution</option>
+              <option value="0.9% NaCl">0.9% NaCl (Normal Saline)</option>
+              <option value="LRS">LRS (Lactated Ringer's)</option>
+              <option value="PlasmaLyte">PlasmaLyte</option>
+              <option value="5% Dextrose">5% Dextrose (D5W)</option>
+              <option value="Colloid">Colloid</option>
+              <option value="Blood">Blood product</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Note</label>
+            <input type="text" id="fluid-note" placeholder="Any notes about fluid therapy…">
+          </div>
+          <div class="form-group">
+            <label>IV Maintenance Rate (mL/hr)</label>
+            <input type="number" id="fluid-rate-value" step="0.1" min="0" placeholder="e.g. 10" oninput="recalcFluidTotal()">
+          </div>
+          <div class="form-group">
+            <label>Fluid Bolus (mL)</label>
+            <input type="number" id="fluid-bolus-value" step="1" min="0" placeholder="0" oninput="recalcFluidTotal()">
+          </div>
+        </div>
+
+        <!-- Total fluid calculation display -->
+        <div class="mt-3 p-3" style="background:var(--bg);border-radius:0.5rem;border:1px solid var(--border)">
+          <div class="text-sm text-muted mb-2">
+            <strong>Formula:</strong> Total IV Fluid = (Rate × Surgical Time) + Bolus
+            &nbsp;|&nbsp; Surgical time: <span id="surg-time-display" style="font-weight:600">— (set procedure start/end in Monitoring tab)</span>
+          </div>
+          <div class="flex items-center gap-3 flex-wrap">
+            <strong style="font-size:1.05rem">Calculated Total: <span id="total-fluid-fluids" style="color:var(--primary);font-size:1.2rem">0.0</span> mL</strong>
+          </div>
+          <div class="mt-2 flex items-center gap-2">
+            <label style="margin:0;font-size:0.85rem;white-space:nowrap">Manual Override (mL):</label>
+            <input type="number" id="fluid-total-override" step="1" min="0" placeholder="leave blank to auto-calculate" style="max-width:220px" oninput="recalcFluidTotal()">
+            <span class="text-xs text-muted">Overrides calculation when filled</span>
+          </div>
+        </div>
+        <button class="btn btn-success mt-2" onclick="saveFluidData()">✓ Save Fluid Data</button>
+      </div>
+
+      <!-- CRI Medications (simplified format) -->
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">💉 CRI Medications</h2></div>
+        <p class="section-subtitle">Record CRI drug infusions — drug name, start time, and infusion rate.</p>
+        <div class="drug-entry">
+          <div class="form-grid form-grid-3">
+            <div class="form-group">
+              <label>Drug</label>
+              <input type="text" id="cri-drug" list="drug-preset-dl" placeholder="Drug name…">
+            </div>
+            <div class="form-group">
+              <label>Time <button class="btn btn-ghost btn-sm" style="padding:0;font-size:0.7rem" onclick="document.getElementById('cri-time').value=nowLocalDT()">Now</button></label>
+              <input type="datetime-local" id="cri-time">
+            </div>
+            <div class="form-group">
+              <label>Rate (mL/hr)</label>
+              <input type="number" id="cri-rate" step="0.1" placeholder="mL/hr" min="0">
+            </div>
+          </div>
+          <button class="btn btn-success mt-2" onclick="saveCRIEntry()">✓ Save CRI Entry</button>
+        </div>
+        <div class="table-wrap mt-3">
+          <table>
+            <thead><tr><th>Time</th><th>Drug</th><th>Rate (mL/hr)</th><th>Del</th></tr></thead>
+            <tbody id="cri-log-tbody">
+              <tr><td colspan="4" style="text-align:center;padding:0.75rem;color:var(--text-muted)">No CRI entries yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Recovery ───────────────────────────────────── -->
+    <div class="tab-panel" id="panel-recovery">
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">🛏 Recovery Summary</h2></div>
+        <div class="form-grid form-grid-2">
+          <div class="form-group">
+            <label>Extubation Time</label>
+            <div class="flex gap-1">
+              <input type="datetime-local" id="extubation_time">
+              <button class="btn btn-outline btn-sm" onclick="setNowField('extubation_time')">Now</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Sternal Recumbency Time</label>
+            <div class="flex gap-1">
+              <input type="datetime-local" id="sternal_time">
+              <button class="btn btn-outline btn-sm" onclick="setNowField('sternal_time')">Now</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Standing / Walking Time</label>
+            <div class="flex gap-1">
+              <input type="datetime-local" id="standing_time">
+              <button class="btn btn-outline btn-sm" onclick="setNowField('standing_time')">Now</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Recovery Quality</label>
+            <select id="recovery_quality">
+              <option value="">Select…</option>
+              <option>Smooth</option><option>Mild excitement</option>
+              <option>Dysphoria</option><option>Prolonged recovery</option>
+              <option>Complicated recovery</option><option>Other</option>
+            </select>
+          </div>
+          <div class="form-group span-full"><label>Recovery Complications</label>
+            <textarea id="recovery_complications" rows="2" placeholder="Any complications during recovery…"></textarea></div>
+          <div class="form-group span-full"><label>Postoperative Pain Management</label>
+            <textarea id="postop_pain_management" rows="2" placeholder="Pain management drugs and plan…"></textarea></div>
+          <div class="form-group span-full"><label>Sample Collection</label>
+            <textarea id="sample_collection" rows="2" placeholder="Samples collected (blood, tissue, etc.)…"></textarea></div>
+          <div class="form-group span-full"><label>Postoperative Medications</label>
+            <textarea id="postop_medications" rows="2" placeholder="Discharge or postop medications…"></textarea></div>
+          <div class="form-group span-full"><label>Postoperative Monitoring Plan</label>
+            <textarea id="postop_monitoring" rows="2" placeholder="Monitoring instructions for recovery ward…"></textarea></div>
+          <div class="form-group span-full"><label>Final Anesthetic Note</label>
+            <textarea id="final_note" rows="3" placeholder="Overall summary and final comments…"></textarea></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Sticky save bar -->
+  <div class="sticky-save-bar" style="grid-column:1/-1">
+    <div class="autosave-indicator" id="save-status">Ready</div>
+    <div class="flex gap-2">
+      <span class="text-xs text-muted" id="last-saved"></span>
+      <button class="btn btn-outline btn-sm" onclick="window.location.href='/dashboard'">← Dashboard</button>
+      <button class="btn btn-primary" id="save-btn" onclick="saveRecord()">💾 Save Record</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/static/js/api.js"></script>
+<script>
+if (!requireAuth()) void 0;
+initSidebar();
+
+const params = new URLSearchParams(location.search);
+const recordId = parseInt(params.get("id"));
+if (!recordId) { toast("No record ID", "error"); }
+
+let record = null;
+let patient = null;
+let monEntries = [];
+let drugEntries = [];
+let fluidEntries = [];
+let emergencyEntries = [];
+
+// Charts
+let chartCombined;
+
+// Timers
+const timers = { anes: null, surg: null };
+const timerStart = { anes: 0, surg: 0 };
+
+// ── Drug Presets from PDF reference ───────────────────────────
+const DRUG_PRESETS = {
+  "midazolam":           { concentration: 5,      dose_unit: "mg/kg" },
+  "diazepam":            { concentration: 5,      dose_unit: "mg/kg" },
+  "xylazine":            { concentration: 20,     dose_unit: "mg/kg" },
+  "medetomidine":        { concentration: 0.1,    dose_unit: "mcg/kg" },
+  "dexmedetomidine":     { concentration: 0.5,    dose_unit: "mcg/kg" },
+  "acepromazine (dilute)":{ concentration: 10,    dose_unit: "mg/kg" },
+  "ketamine":            { concentration: 50,     dose_unit: "mg/kg" },
+  "propofol":            { concentration: 10,     dose_unit: "mg/kg" },
+  "etomidate":           { concentration: 2,      dose_unit: "mg/kg" },
+  "alfaxalone":          { concentration: 10,     dose_unit: "mg/kg" },
+  "lidocaine":           { concentration: 20,     dose_unit: "mg/kg" },
+  "bupivacaine":         { concentration: 5,      dose_unit: "mg/kg" },
+  "morphine":            { concentration: 10,     dose_unit: "mg/kg" },
+  "fentanyl (5ug/mL)":   { concentration: 0.005,  dose_unit: "mcg/kg" },
+  "buprenorphine":       { concentration: 0.3,    dose_unit: "mcg/kg" },
+  "butorphanol [2]":     { concentration: 2,      dose_unit: "mg/kg" },
+  "butorphanol [10]":    { concentration: 10,     dose_unit: "mg/kg" },
+};
+
+function applyDrugPreset(input) {
+  const name = input.value.trim();
+  if (!name) return;
+  const preset = DRUG_PRESETS[name] ||
+    Object.entries(DRUG_PRESETS).find(([k]) => k.toLowerCase() === name.toLowerCase())?.[1];
+  if (!preset) return;
+  const row = input.closest(".drug-entry");
+  if (!row) return;
+  const concInput = row.querySelector("[name='concentration']");
+  const unitSelect = row.querySelector("[name='dose_unit']");
+  if (concInput && !concInput.value) concInput.value = preset.concentration;
+  if (unitSelect && preset.dose_unit) unitSelect.value = preset.dose_unit;
+  recalcDrugRow(row);
+}
+
+// ── Tab switching ──────────────────────────────────────────
+const TAB_IDS = ["pre","premed","induction","local","equipment","monitoring","fluids","recovery"];
+function switchTab(id) {
+  TAB_IDS.forEach(t => {
+    document.getElementById(`panel-${t}`).classList.toggle("active", t === id);
+    document.getElementById(`tab-${t}`)?.classList.toggle("active", t === id);
+  });
+  if (id === "monitoring") setTimeout(renderCharts, 100);
+}
+
+// ── Load record ────────────────────────────────────────────
+async function loadRecord() {
+  try {
+    record = await API.getRecord(recordId);
+    patient = await API.getPatient(record.patient_id);
+    populateBanner();
+    populateFields();
+    populateUsers();
+    monEntries = record.monitoring_entries || [];
+    drugEntries = record.drug_entries || [];
+    fluidEntries = record.fluid_entries || [];
+    emergencyEntries = record.emergency_events || [];
+
+    renderDrugList("premedication", "premed-list");
+    renderDrugList("antibiotic", "antibiotic-list");
+    renderDrugList("induction", "induction-list");
+    renderDrugList("local_anesthesia", "local-list");
+    renderMonTable();
+    renderEmergencyList();
+    renderCRILog();
+    renderFluidTab();
+    updateWeightDisplay();
+    updateTotalFluid();
+
+    // Restore anesthesia timer if ongoing
+    if (record.anesthesia_start && !record.anesthesia_end) {
+      const start = new Date(record.anesthesia_start);
+      const elapsed = Math.floor((Date.now() - start.getTime()) / 1000);
+      if (elapsed > 0 && elapsed < 86400) {
+        timerStart.anes = Date.now() - elapsed * 1000;
+        startTimerTick("anes");
+      }
+    }
+    // Restore surgery timer if ongoing
+    if (record.surgery_start && !record.surgery_end) {
+      const start = new Date(record.surgery_start);
+      const elapsed = Math.floor((Date.now() - start.getTime()) / 1000);
+      if (elapsed > 0 && elapsed < 86400) {
+        timerStart.surg = Date.now() - elapsed * 1000;
+        startTimerTick("surg");
+      }
+    }
+
+    document.getElementById("save-status").textContent = "Loaded";
+  } catch (err) { toast("Failed to load record: " + err.message, "error"); }
+}
+
+function populateBanner() {
+  document.getElementById("banner-hn").textContent = patient.hn;
+  document.getElementById("banner-name").textContent = patient.name;
+  document.getElementById("banner-signalment").textContent =
+    [patient.species, patient.breed, patient.sex, patient.age ? patient.age + " old" : "", patient.weight ? patient.weight + "kg" : ""].filter(Boolean).join(" · ");
+  const statusEl = document.getElementById("banner-status");
+  statusEl.textContent = record.status;
+  statusEl.className = `badge badge-${record.status || "draft"}`;
+  document.getElementById("status-select").value = record.status || "draft";
+  document.title = `${patient.hn} — ${patient.name} | Vet Anesthesia`;
+}
+
+const RECORD_FIELDS = [
+  "asa_status","weight_at_record","pcv","bun","creatinine","ast","alt","crt",
+  "hr_pre","rr_pre","pulse_quality","temp_pre","current_medications","clinical_notes",
+  "anesthetic_concerns","risk_assessment","record_date","diagnosis","surgical_procedure",
+  "surgeon","anesthesiologist","assistant","o2_flow_rate","anesthetic_machine",
+  "breathing_system","vaporizer_gas","airway_device","ett_size","intubation_note",
+  "induction_complication","premed_quality","induction_quality",
+  "recovery_quality","recovery_complications","postop_pain_management",
+  "sample_collection","postop_medications","postop_monitoring","final_note",
+];
+const DATETIME_FIELDS = ["anesthesia_start","anesthesia_end","surgery_start","surgery_end",
+                          "extubation_time","sternal_time","standing_time"];
+
+function populateFields() {
+  RECORD_FIELDS.forEach(f => {
+    const el = document.getElementById(f);
+    if (el && record[f] !== null && record[f] !== undefined) el.value = record[f];
+  });
+  DATETIME_FIELDS.forEach(f => {
+    const el = document.getElementById(f);
+    if (el && record[f]) el.value = isoToLocalDT(record[f]);
+  });
+  // Update anesthesia start display
+  if (record.anesthesia_start) {
+    const el = document.getElementById("anes-start-display");
+    if (el) el.textContent = formatDT(record.anesthesia_start);
+  }
+  if (record.surgery_start) {
+    const el = document.getElementById("surg-start-display");
+    if (el) el.textContent = formatDT(record.surgery_start);
+  }
+}
+
+async function populateUsers() {
+  try {
+    const users = await API.listUsers();
+    const dl = document.getElementById("user-dl");
+    users.forEach(u => { const o = document.createElement("option"); o.value = u.full_name || u.username; dl.appendChild(o); });
+  } catch {}
+}
+
+// ── Status update ──────────────────────────────────────────
+async function updateStatus() {
+  const status = document.getElementById("status-select").value;
+  try {
+    await API.updateRecord(recordId, { status });
+    const statusEl = document.getElementById("banner-status");
+    statusEl.textContent = status;
+    statusEl.className = `badge badge-${status}`;
+    toast("Status updated to " + status, "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+// ── Save record ────────────────────────────────────────────
+let saveTimer;
+function scheduleSave() {
+  const ind = document.getElementById("save-status");
+  ind.textContent = "⏳ Unsaved changes…";
+  ind.style.color = "var(--warning)";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveRecord, 8000);
+}
+
+async function saveRecord() {
+  const ind = document.getElementById("save-status");
+  ind.textContent = "💾 Saving…";
+  const data = {};
+  RECORD_FIELDS.forEach(f => { const el = document.getElementById(f); if (el) data[f] = el.value || null; });
+  DATETIME_FIELDS.forEach(f => { const el = document.getElementById(f); if (el) data[f] = localDTtoISO(el.value); });
+  ["weight_at_record","pcv","bun","creatinine","ast","alt","hr_pre","rr_pre","temp_pre","o2_flow_rate","ett_size"].forEach(f => {
+    if (data[f]) data[f] = parseFloat(data[f]) || null;
+  });
+  try {
+    record = await API.updateRecord(recordId, data);
+    ind.textContent = "✓ Saved";
+    ind.style.color = "var(--success)";
+    document.getElementById("last-saved").textContent = "Last saved: " + new Date().toLocaleTimeString();
+  } catch (err) {
+    ind.textContent = "✗ Save failed";
+    ind.style.color = "var(--danger)";
+    toast(err.message, "error");
+  }
+}
+
+document.querySelectorAll("input, select, textarea").forEach(el => {
+  el.addEventListener("change", () => { if (el.closest(".drug-entry") || el.closest(".modal")) return; scheduleSave(); });
+});
+
+function updateWeightCalcs() {
+  updateWeightDisplay();
+  document.querySelectorAll(".drug-entry").forEach(row => recalcDrugRow(row));
+}
+function updateWeightDisplay() {
+  const w = document.getElementById("weight_at_record")?.value || patient?.weight || "";
+  const el = document.getElementById("premed-weight");
+  if (el) el.textContent = w || "—";
+}
+
+// ── Drug entry management ──────────────────────────────────
+function drugRowHTML(entry, type, listId, index) {
+  const isLocal = type === "local_anesthesia";
+  const isAnti = type === "antibiotic";
+  const id = entry?.id || null;
+  const v = entry || {};
+  return `
+  <div class="drug-entry" data-id="${id || ""}" data-type="${type}" data-idx="${index}">
+    <div class="drug-entry-header">
+      <span class="drug-entry-num">${isLocal ? "Block" : "Drug"} ${index + 1}</span>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="removeDrugEntry(this,'${listId}','${type}')">✕</button>
+    </div>
+    <div class="form-grid">
+      ${isLocal ? `<div class="form-group"><label>Technique</label>
+        <input type="text" name="technique" value="${v.technique||""}" placeholder="e.g. Femoral nerve block"></div>` : ""}
+      <div class="form-group">
+        <label>Drug Name</label>
+        <input type="text" name="drug_name" value="${v.drug_name||""}" placeholder="Drug name" list="drug-preset-dl" oninput="applyDrugPreset(this)">
+      </div>
+      <div class="form-group">
+        <label>Dose</label>
+        <input type="number" name="dose" step="0.01" value="${v.dose||""}" placeholder="0.0" oninput="recalcDrugRow(this.closest('.drug-entry'))">
+      </div>
+      <div class="form-group">
+        <label>Dose Unit</label>
+        <select name="dose_unit" onchange="recalcDrugRow(this.closest('.drug-entry'))">
+          <option value="mg/kg" ${v.dose_unit==="mg/kg"?"selected":""}>mg/kg</option>
+          <option value="mcg/kg" ${v.dose_unit==="mcg/kg"?"selected":""}>mcg/kg</option>
+          <option value="U/kg" ${v.dose_unit==="U/kg"?"selected":""}>U/kg</option>
+          <option value="mL" ${v.dose_unit==="mL"?"selected":""}>mL (total)</option>
+          <option value="total" ${v.dose_unit==="total"?"selected":""}>mg (total)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Conc. (mg/mL)</label>
+        <input type="number" name="concentration" step="0.001" value="${v.concentration||""}" placeholder="mg/mL" oninput="recalcDrugRow(this.closest('.drug-entry'))">
+      </div>
+      <div class="form-group">
+        <label>Volume (mL)</label>
+        <input type="number" name="calculated_volume" step="0.01" value="${v.calculated_volume||""}" placeholder="calc." class="input-calculated">
+      </div>
+      <div class="form-group">
+        <label>Route</label>
+        <select name="route">
+          <option value="">Route…</option>
+          <option value="IV" ${v.route==="IV"?"selected":""}>IV</option>
+          <option value="IM" ${v.route==="IM"?"selected":""}>IM</option>
+          <option value="SC" ${v.route==="SC"?"selected":""}>SC</option>
+          <option value="PO" ${v.route==="PO"?"selected":""}>PO</option>
+          <option value="CRI" ${v.route==="CRI"?"selected":""}>CRI</option>
+          <option value="Epidural" ${v.route==="Epidural"?"selected":""}>Epidural</option>
+          <option value="Regional" ${v.route==="Regional"?"selected":""}>Regional</option>
+          <option value="Inhalant" ${v.route==="Inhalant"?"selected":""}>Inhalant</option>
+          <option value="Other" ${v.route==="Other"?"selected":""}>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Time <button class="btn btn-ghost" style="font-size:0.65rem;padding:0" onclick="setNowForEntry(this)">Now</button></label>
+        <input type="datetime-local" name="time" value="${isoToLocalDT(v.time)||""}">
+      </div>
+      ${isAnti ? `<div class="form-group"><label>Redose Interval (h)</label>
+        <input type="number" name="repeat_dose_interval" step="0.5" value="${v.repeat_dose_interval||""}" placeholder="hrs"></div>` : ""}
+      ${isLocal ? `<div class="form-group"><label>Site</label>
+        <input type="text" name="site" value="${v.site||""}" placeholder="Injection site"></div>` : ""}
+      <div class="form-group span-2">
+        <label>Note</label>
+        <input type="text" name="note" value="${v.note||""}" placeholder="Note">
+      </div>
+    </div>
+    <button class="btn btn-success btn-sm mt-2" onclick="saveDrugEntry(this,'${type}')">✓ Save</button>
+    <span class="text-xs text-muted ml-2" style="margin-left:0.5rem" data-saved="${id ? "true" : "false"}">
+      ${id ? "✓ Saved" : "Unsaved"}
+    </span>
+  </div>`;
+}
+
+function addDrugRow(type, listId) {
+  const list = document.getElementById(listId);
+  // Remove "no entries" placeholder
+  const placeholder = list.querySelector("p.text-muted");
+  if (placeholder) placeholder.remove();
+  const existing = list.querySelectorAll(".drug-entry").length;
+  const div = document.createElement("div");
+  div.innerHTML = drugRowHTML(null, type, listId, existing);
+  list.appendChild(div.firstElementChild);
+  const timeInput = list.lastElementChild.querySelector("[name='time']");
+  if (timeInput) timeInput.value = nowLocalDT();
+  list.lastElementChild.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function renderDrugList(type, listId) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.innerHTML = "";
+  const entries = drugEntries.filter(d => d.entry_type === type);
+  entries.forEach((e, i) => {
+    const div = document.createElement("div");
+    div.innerHTML = drugRowHTML(e, type, listId, i);
+    list.appendChild(div.firstElementChild);
+  });
+  // Add 3 default empty rows for premed and induction if no saved entries
+  if (entries.length === 0 && (type === "premedication" || type === "induction")) {
+    for (let i = 0; i < 3; i++) {
+      const div = document.createElement("div");
+      div.innerHTML = drugRowHTML(null, type, listId, i);
+      list.appendChild(div.firstElementChild);
+      const timeInput = list.lastElementChild.querySelector("[name='time']");
+      if (timeInput) timeInput.value = nowLocalDT();
+    }
+  } else if (entries.length === 0) {
+    list.innerHTML = `<p class="text-muted text-sm" style="padding:0.5rem">No entries. Click "+ Add" to begin.</p>`;
+  }
+}
+
+function recalcDrugRow(row) {
+  if (!row) return;
+  const weight = parseFloat(document.getElementById("weight_at_record")?.value) || parseFloat(patient?.weight) || 0;
+  const dose = parseFloat(row.querySelector("[name='dose']")?.value) || 0;
+  const unit = row.querySelector("[name='dose_unit']")?.value || "mg/kg";
+  const conc = parseFloat(row.querySelector("[name='concentration']")?.value) || 0;
+
+  let totalDose = 0;
+  if (unit === "mL" || unit === "total") { totalDose = dose; }
+  else if (weight && dose) { totalDose = weight * dose; }
+
+  const volume = (conc && totalDose) ? totalDose / conc : 0;
+
+  const volEl = row.querySelector("[name='calculated_volume']");
+  if (volEl && volume) {
+    volEl.value = volume.toFixed(3);
+    if (volume > 50) toast(`⚠ Volume ${volume.toFixed(1)} mL seems high — please verify`, "warning");
+  }
+}
+
+async function saveDrugEntry(btn, type) {
+  const row = btn.closest(".drug-entry");
+  const id = row.dataset.id ? parseInt(row.dataset.id) : null;
+  const getData = n => row.querySelector(`[name="${n}"]`)?.value || null;
+  const getNum = n => { const v = getData(n); return v ? parseFloat(v) : null; };
+
+  const data = {
+    entry_type: type,
+    drug_name: getData("drug_name"),
+    dose: getNum("dose"),
+    dose_unit: getData("dose_unit"),
+    concentration: getNum("concentration"),
+    concentration_unit: "mg/mL",
+    calculated_volume: getNum("calculated_volume"),
+    route: getData("route"),
+    time: localDTtoISO(getData("time")),
+    note: getData("note"),
+    repeat_dose_interval: getNum("repeat_dose_interval"),
+    technique: getData("technique"),
+    site: getData("site"),
+  };
+
+  try {
+    let saved;
+    if (id) { saved = await API.updateDrug(recordId, id, data); }
+    else { saved = await API.addDrug(recordId, data); row.dataset.id = saved.id; }
+    const statusSpan = row.querySelector("[data-saved]");
+    if (statusSpan) { statusSpan.textContent = "✓ Saved"; statusSpan.dataset.saved = "true"; }
+    toast("Drug entry saved", "success");
+    const full = await API.getRecord(recordId);
+    drugEntries = full.drug_entries || [];
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function removeDrugEntry(btn, listId, type) {
+  const row = btn.closest(".drug-entry");
+  const id = row.dataset.id ? parseInt(row.dataset.id) : null;
+  if (id && !confirm("Remove this entry?")) return;
+  if (id) {
+    try { await API.deleteDrug(recordId, id); toast("Removed", "success"); }
+    catch (err) { toast(err.message, "error"); return; }
+  }
+  row.remove();
+  const list = document.getElementById(listId);
+  if (list && !list.querySelector(".drug-entry")) {
+    list.innerHTML = `<p class="text-muted text-sm" style="padding:0.5rem">No entries.</p>`;
+  }
+}
+
+function setNowForEntry(btn, fieldName) {
+  const row = btn.closest(".drug-entry");
+  if (!row) return;
+  const el = row.querySelector(`[name="${fieldName || "time"}"]`);
+  if (el) el.value = nowLocalDT();
+}
+
+// ── CRI (simplified format) ────────────────────────────────
+async function saveCRIEntry() {
+  const drug = document.getElementById("cri-drug").value.trim();
+  const time = document.getElementById("cri-time").value;
+  const rate = parseFloat(document.getElementById("cri-rate").value) || null;
+  if (!drug) { toast("Drug name required", "warning"); return; }
+  if (!time) { toast("Time required", "warning"); return; }
+  const data = { entry_type: "cri", drug_name: drug, time: localDTtoISO(time), rate, rate_unit: "mL/hr" };
+  try {
+    const saved = await API.addDrug(recordId, data);
+    drugEntries.push(saved);
+    renderCRILog();
+    document.getElementById("cri-drug").value = "";
+    document.getElementById("cri-time").value = "";
+    document.getElementById("cri-rate").value = "";
+    toast("CRI entry saved", "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+function renderCRILog() {
+  const tbody = document.getElementById("cri-log-tbody");
+  if (!tbody) return;
+  const entries = drugEntries.filter(d => d.entry_type === "cri");
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:0.75rem;color:var(--text-muted)">No CRI entries yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = entries.map(e => `
+    <tr>
+      <td style="white-space:nowrap">${formatDT(e.time)}</td>
+      <td>${e.drug_name || ""}</td>
+      <td>${e.rate != null ? e.rate : "—"}</td>
+      <td><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteCRIEntry(${e.id})">✕</button></td>
+    </tr>`).join("");
+}
+
+async function deleteCRIEntry(id) {
+  if (!confirm("Remove CRI entry?")) return;
+  try {
+    await API.deleteDrug(recordId, id);
+    drugEntries = drugEntries.filter(d => d.id !== id);
+    renderCRILog();
+    toast("Removed", "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+// ── Fluids (simplified) ────────────────────────────────────
+function renderFluidTab() {
+  const mainFluid = fluidEntries.find(f => f.fluid_type && f.fluid_type !== "Fluid Bolus");
+  const bolusEntry = fluidEntries.find(f => f.fluid_type === "Fluid Bolus");
+
+  if (mainFluid) {
+    const sel = document.getElementById("fluid-type-select");
+    if (sel) {
+      sel.value = mainFluid.fluid_type;
+      if (!sel.value) {
+        const opt = document.createElement("option");
+        opt.value = mainFluid.fluid_type;
+        opt.textContent = mainFluid.fluid_type;
+        sel.appendChild(opt);
+        sel.value = mainFluid.fluid_type;
+      }
+    }
+    const noteEl = document.getElementById("fluid-note");
+    if (noteEl && mainFluid.note) noteEl.value = mainFluid.note;
+    const rateEl = document.getElementById("fluid-rate-value");
+    if (rateEl && mainFluid.rate) rateEl.value = mainFluid.rate;
+    if (mainFluid.is_manual_volume && mainFluid.total_volume) {
+      const overEl = document.getElementById("fluid-total-override");
+      if (overEl) overEl.value = mainFluid.total_volume;
+    }
+  }
+
+  if (bolusEntry && bolusEntry.total_volume) {
+    const bolusEl = document.getElementById("fluid-bolus-value");
+    if (bolusEl) bolusEl.value = bolusEntry.total_volume;
+  }
+
+  recalcFluidTotal();
+}
+
+async function saveFluidData() {
+  const fluidType = document.getElementById("fluid-type-select").value;
+  const note = document.getElementById("fluid-note")?.value || null;
+  const rate = parseFloat(document.getElementById("fluid-rate-value")?.value) || null;
+  const bolus = parseFloat(document.getElementById("fluid-bolus-value")?.value) || null;
+  const overrideRaw = document.getElementById("fluid-total-override")?.value;
+  const override = overrideRaw !== "" ? parseFloat(overrideRaw) : null;
+  const isManual = override !== null && !isNaN(override);
+
+  const mainData = {
+    fluid_type: fluidType, note,
+    rate: rate, rate_unit: rate ? "mL/hr" : null,
+    is_manual_volume: isManual,
+    total_volume: isManual ? override : null,
+  };
+
+  try {
+    const mainFluid = fluidEntries.find(f => f.fluid_type && f.fluid_type !== "Fluid Bolus");
+    if (mainFluid) {
+      const saved = await API.updateFluid(recordId, mainFluid.id, mainData);
+      fluidEntries = fluidEntries.map(f => f.id === mainFluid.id ? saved : f);
+    } else {
+      const saved = await API.addFluid(recordId, mainData);
+      fluidEntries.push(saved);
+    }
+
+    // Bolus entry
+    const bolusEntry = fluidEntries.find(f => f.fluid_type === "Fluid Bolus");
+    if (bolus && bolus > 0) {
+      const bolusData = { fluid_type: "Fluid Bolus", total_volume: bolus, is_manual_volume: true };
+      if (bolusEntry) {
+        const saved = await API.updateFluid(recordId, bolusEntry.id, bolusData);
+        fluidEntries = fluidEntries.map(f => f.id === bolusEntry.id ? saved : f);
+      } else {
+        const saved = await API.addFluid(recordId, bolusData);
+        fluidEntries.push(saved);
+      }
+    } else if (bolusEntry) {
+      await API.deleteFluid(recordId, bolusEntry.id);
+      fluidEntries = fluidEntries.filter(f => f.id !== bolusEntry.id);
+    }
+
+    toast("Fluid data saved", "success");
+    recalcFluidTotal();
+  } catch (err) { toast(err.message, "error"); }
+}
+
+function recalcFluidTotal() {
+  // Manual override takes priority
+  const overrideEl = document.getElementById("fluid-total-override");
+  const override = overrideEl ? parseFloat(overrideEl.value) : NaN;
+  if (!isNaN(override) && overrideEl.value !== "") {
+    ["total-fluid", "total-fluid-fluids"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = override.toFixed(1);
+    });
+    return;
+  }
+
+  // Formula: rate × surgical_time_hours + bolus
+  const rate = parseFloat(document.getElementById("fluid-rate-value")?.value) || 0;
+  const bolus = parseFloat(document.getElementById("fluid-bolus-value")?.value) || 0;
+
+  // Surgical time from procedure start/end fields
+  const surgStartVal = document.getElementById("surgery_start")?.value;
+  const surgEndVal = document.getElementById("surgery_end")?.value;
+  let surgHours = 0;
+  if (surgStartVal && surgEndVal) {
+    surgHours = Math.max(0, (new Date(surgEndVal) - new Date(surgStartVal)) / 3600000);
+  }
+
+  // Update surgical time display in Fluids tab
+  const surgTimeEl = document.getElementById("surg-time-display");
+  if (surgTimeEl) {
+    if (surgHours > 0) {
+      const h = Math.floor(surgHours);
+      const m = Math.round((surgHours - h) * 60);
+      surgTimeEl.textContent = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    } else {
+      surgTimeEl.textContent = "— (set procedure start/end in Monitoring tab)";
+    }
+  }
+
+  const total = rate * surgHours + bolus;
+  ["total-fluid", "total-fluid-fluids"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = total.toFixed(1);
+  });
+}
+
+function updateTotalFluid() { recalcFluidTotal(); }
+
+// ── Monitoring ─────────────────────────────────────────────
+function setNowMon() { document.getElementById("mon-time").value = nowLocalDT(); }
+
+function calcMAP() {
+  const sbp = parseFloat(document.getElementById("mon-sbp").value) || 0;
+  const dbp = parseFloat(document.getElementById("mon-dbp").value) || 0;
+  if (sbp && dbp) document.getElementById("mon-map").value = Math.round(dbp + (sbp - dbp) / 3);
+}
+
+async function addMonEntry() {
+  const time = document.getElementById("mon-time").value;
+  if (!time) { toast("Time is required", "warning"); return; }
+  const data = {
+    time: localDTtoISO(time),
+    gas_percent: parseFloat(document.getElementById("mon-gas").value) || null,
+    hr: parseFloat(document.getElementById("mon-hr").value) || null,
+    rr: parseFloat(document.getElementById("mon-rr").value) || null,
+    spo2: parseFloat(document.getElementById("mon-spo2").value) || null,
+    systolic_bp: parseFloat(document.getElementById("mon-sbp").value) || null,
+    diastolic_bp: parseFloat(document.getElementById("mon-dbp").value) || null,
+    map_bp: parseFloat(document.getElementById("mon-map").value) || null,
+    etco2: parseFloat(document.getElementById("mon-etco2").value) || null,
+    body_temp: parseFloat(document.getElementById("mon-temp").value) || null,
+    o2_flow: parseFloat(document.getElementById("mon-o2").value) || null,
+    fluid_rate: parseFloat(document.getElementById("mon-fluid-rate").value) || null,
+    ventilation_mode: document.getElementById("mon-vent").value || null,
+    pulse: document.getElementById("mon-pulse").value || null,
+    note: document.getElementById("mon-note").value || null,
+  };
+  try {
+    const saved = await API.addMonitoring(recordId, data);
+    monEntries.push(saved);
+    monEntries.sort((a, b) => new Date(a.time) - new Date(b.time));
+    renderMonTable();
+    renderCharts();
+    updateVitalCards(saved);
+    // Auto-fill fluid rate in Fluids tab from last recorded rate
+    if (saved.fluid_rate) {
+      const rateEl = document.getElementById("fluid-rate-value");
+      if (rateEl && !rateEl.value) rateEl.value = saved.fluid_rate;
+    }
+    recalcFluidTotal();
+    ["mon-gas","mon-hr","mon-rr","mon-spo2","mon-sbp","mon-dbp","mon-map","mon-etco2","mon-temp","mon-o2","mon-fluid-rate","mon-note"].forEach(id => {
+      document.getElementById(id).value = "";
+    });
+    document.getElementById("mon-vent").value = "";
+    document.getElementById("mon-pulse").value = "";
+    document.getElementById("mon-time").value = "";
+    toast("Vitals recorded", "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+function updateVitalCards(entry) {
+  const set = (id, val, lo, hi) => {
+    const card = document.getElementById(id);
+    if (!card || val === null || val === undefined) return;
+    card.querySelector(".vital-value").textContent = typeof val === "number" ? (Number.isInteger(val) ? val : val.toFixed(1)) : val;
+    card.className = "vital-card";
+    if (lo !== undefined && hi !== undefined) {
+      if (val < lo || val > hi) card.classList.add("danger");
+      else card.classList.add("good");
+    }
+  };
+  set("vc-hr", entry.hr, 40, 200);
+  set("vc-rr", entry.rr, 6, 60);
+  set("vc-spo2", entry.spo2, 95, 100);
+  set("vc-map", entry.map_bp, 60, 120);
+  set("vc-gas", entry.gas_percent);
+  set("vc-fluid", entry.fluid_rate);
+}
+
+function renderMonTable() {
+  const tbody = document.getElementById("mon-tbody");
+  if (!monEntries.length) {
+    tbody.innerHTML = `<tr><td colspan="15" style="text-align:center;padding:1rem;color:var(--text-muted)">No entries yet</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = monEntries.map(m => `
+    <tr>
+      <td style="white-space:nowrap">${formatDT(m.time)}</td>
+      <td>${m.gas_percent ?? ""}</td>
+      <td>${m.hr ?? ""}</td>
+      <td>${m.rr ?? ""}</td>
+      <td style="color:${m.spo2 && m.spo2 < 95 ? "var(--danger)" : "inherit"}">${m.spo2 ?? ""}</td>
+      <td>${m.systolic_bp ?? ""}</td>
+      <td>${m.diastolic_bp ?? ""}</td>
+      <td style="color:${m.map_bp && m.map_bp < 60 ? "var(--danger)" : "inherit"}">${m.map_bp ?? ""}</td>
+      <td>${m.etco2 ?? ""}</td>
+      <td>${m.body_temp ?? ""}</td>
+      <td>${m.o2_flow ?? ""}</td>
+      <td>${m.fluid_rate ?? ""}</td>
+      <td>${(m.ventilation_mode || "").slice(0, 4)}</td>
+      <td style="max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.note || ""}</td>
+      <td><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteMonEntry(${m.id})">✕</button></td>
+    </tr>`).join("");
+  if (monEntries.length > 0) updateVitalCards(monEntries[monEntries.length - 1]);
+}
+
+async function deleteMonEntry(id) {
+  if (!confirm("Delete this monitoring entry?")) return;
+  try {
+    await API.deleteMonitoring(recordId, id);
+    monEntries = monEntries.filter(m => m.id !== id);
+    renderMonTable();
+    renderCharts();
+    updateTotalFluid();
+    toast("Entry deleted", "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+// ── Combined Chart ─────────────────────────────────────────
+function renderCharts() {
+  const labels = monEntries.map(m => formatDT(m.time));
+  const ctx = document.getElementById("chart-combined")?.getContext("2d");
+  if (!ctx) return;
+  if (chartCombined) chartCombined.destroy();
+
+  const mkDs = (label, data, color, axis = "y") => ({
+    label, data, borderColor: color, backgroundColor: color + "18",
+    fill: false, spanGaps: true,
+    pointRadius: 4, pointHoverRadius: 6,
+    yAxisID: axis,
+  });
+
+  chartCombined = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        mkDs("HR (bpm)",  monEntries.map(m => m.hr),           "#e63946", "y"),
+        mkDs("RR (/min)", monEntries.map(m => m.rr),           "#457b9d", "y"),
+        mkDs("SBP",       monEntries.map(m => m.systolic_bp),  "#2a9d8f", "y"),
+        mkDs("DBP",       monEntries.map(m => m.diastolic_bp), "#f4a261", "y"),
+        mkDs("MAP",       monEntries.map(m => m.map_bp),       "#0077b6", "y"),
+        mkDs("Gas%",      monEntries.map(m => m.gas_percent),  "#9b5de5", "y1"),
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxRotation: 40 } },
+        y: {
+          type: "linear",
+          position: "left",
+          title: { display: true, text: "HR / RR / BP (mmHg)", font: { size: 10 } },
+          ticks: { font: { size: 10 } },
+          min: 0,
+        },
+        y1: {
+          type: "linear",
+          position: "right",
+          title: { display: true, text: "Gas %", font: { size: 10 }, color: "#9b5de5" },
+          ticks: { font: { size: 10 }, color: "#9b5de5" },
+          min: 0,
+          max: 8,
+          grid: { drawOnChartArea: false },
+        },
+      },
+      elements: { line: { tension: 0.3, borderWidth: 2 } }
+    }
+  });
+}
+
+// ── Timing: Start/Stop Anesthesia & Procedure ─────────────
+function startTimerTick(key) {
+  if (timers[key]) clearInterval(timers[key]);
+  timers[key] = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - timerStart[key]) / 1000);
+    const hms = secondsToHMS(elapsed);
+    const short = hms.slice(0, 5); // HH:MM
+    if (key === "anes") {
+      const el1 = document.getElementById("anes-timer");
+      const el2 = document.getElementById("anes-timer-mon");
+      const el3 = document.getElementById("anes-timer-hdr");
+      if (el1) el1.textContent = hms;
+      if (el2) el2.textContent = hms;
+      if (el3) el3.textContent = short;
+    } else {
+      const el1 = document.getElementById("surg-timer");
+      const el2 = document.getElementById("surg-timer-hdr");
+      if (el1) el1.textContent = hms;
+      if (el2) el2.textContent = short;
+    }
+  }, 1000);
+}
+
+async function markAnesthesiaStart() {
+  const now = nowLocalDT();
+  document.getElementById("anesthesia_start").value = now;
+  const displayEl = document.getElementById("anes-start-display");
+  if (displayEl) displayEl.textContent = new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+  timerStart.anes = Date.now();
+  startTimerTick("anes");
+  scheduleSave();
+  toast("▶ Anesthesia started", "success");
+}
+
+async function markAnesthesiaEnd() {
+  const now = nowLocalDT();
+  document.getElementById("anesthesia_end").value = now;
+  if (timers.anes) { clearInterval(timers.anes); timers.anes = null; }
+  scheduleSave();
+  toast("⏹ Anesthesia stopped", "info");
+}
+
+async function markSurgeryStart() {
+  const now = nowLocalDT();
+  document.getElementById("surgery_start").value = now;
+  const displayEl = document.getElementById("surg-start-display");
+  if (displayEl) displayEl.textContent = new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+  timerStart.surg = Date.now();
+  startTimerTick("surg");
+  scheduleSave();
+  toast("▶ Procedure started", "success");
+}
+
+async function markSurgeryEnd() {
+  const now = nowLocalDT();
+  document.getElementById("surgery_end").value = now;
+  if (timers.surg) { clearInterval(timers.surg); timers.surg = null; }
+  scheduleSave();
+  toast("⏹ Procedure stopped", "info");
+}
+
+function setNowField(fieldId) {
+  const el = document.getElementById(fieldId);
+  if (el) el.value = nowLocalDT();
+  scheduleSave();
+}
+
+// ── Emergency events ───────────────────────────────────────
+function emergencyRowHTML(entry, index) {
+  const v = entry || {};
+  return `
+  <div class="drug-entry" data-id="${v.id||""}" style="border-left:3px solid var(--danger)">
+    <div class="drug-entry-header">
+      <span class="drug-entry-num badge badge-danger">Event ${index + 1}</span>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="removeEmergencyEntry(this)">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Time <button class="btn btn-ghost" style="font-size:0.65rem;padding:0" onclick="setNowEmergency(this)">Now</button></label>
+        <input type="datetime-local" name="time" value="${isoToLocalDT(v.time)||""}">
+      </div>
+      <div class="form-group"><label>Event Type</label>
+        <select name="event_type">
+          <option value="">Select…</option>
+          <option value="Bradycardia" ${v.event_type==="Bradycardia"?"selected":""}>Bradycardia</option>
+          <option value="Tachycardia" ${v.event_type==="Tachycardia"?"selected":""}>Tachycardia</option>
+          <option value="Hypotension" ${v.event_type==="Hypotension"?"selected":""}>Hypotension</option>
+          <option value="Hypertension" ${v.event_type==="Hypertension"?"selected":""}>Hypertension</option>
+          <option value="Apnea" ${v.event_type==="Apnea"?"selected":""}>Apnea</option>
+          <option value="Hypoxia" ${v.event_type==="Hypoxia"?"selected":""}>Hypoxia</option>
+          <option value="Hypothermia" ${v.event_type==="Hypothermia"?"selected":""}>Hypothermia</option>
+          <option value="Cardiac arrest" ${v.event_type==="Cardiac arrest"?"selected":""}>Cardiac Arrest</option>
+          <option value="CPR initiated" ${v.event_type==="CPR initiated"?"selected":""}>CPR Initiated</option>
+          <option value="Drug administered" ${v.event_type==="Drug administered"?"selected":""}>Drug Administered</option>
+          <option value="Fluid bolus" ${v.event_type==="Fluid bolus"?"selected":""}>Fluid Bolus</option>
+          <option value="Other" ${v.event_type==="Other"?"selected":""}>Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Drug Name</label><input type="text" name="drug_name" value="${v.drug_name||""}" placeholder="Drug (if applicable)" list="drug-preset-dl"></div>
+      <div class="form-group"><label>Dose</label><input type="number" name="dose" step="0.001" value="${v.dose||""}" placeholder="dose"></div>
+      <div class="form-group"><label>Dose Unit</label>
+        <select name="dose_unit">
+          <option value="mg" ${v.dose_unit==="mg"?"selected":""}>mg</option>
+          <option value="mcg" ${v.dose_unit==="mcg"?"selected":""}>mcg</option>
+          <option value="mL" ${v.dose_unit==="mL"?"selected":""}>mL</option>
+          <option value="mg/kg" ${v.dose_unit==="mg/kg"?"selected":""}>mg/kg</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Volume (mL)</label><input type="number" name="volume" step="0.01" value="${v.volume||""}" placeholder="mL"></div>
+      <div class="form-group"><label>Route</label>
+        <select name="route">
+          <option value="">—</option>
+          <option value="IV" ${v.route==="IV"?"selected":""}>IV</option>
+          <option value="IM" ${v.route==="IM"?"selected":""}>IM</option>
+          <option value="IO" ${v.route==="IO"?"selected":""}>IO</option>
+          <option value="ET" ${v.route==="ET"?"selected":""}>ET</option>
+        </select>
+      </div>
+      <div class="form-group span-2"><label>Response / Outcome</label>
+        <input type="text" name="response" value="${v.response||""}" placeholder="Patient response…"></div>
+      <div class="form-group span-full"><label>Note</label>
+        <input type="text" name="note" value="${v.note||""}" placeholder="Additional notes…"></div>
+    </div>
+    <button class="btn btn-danger btn-sm mt-2" onclick="saveEmergencyEntry(this)">✓ Save Event</button>
+    <span class="text-xs text-muted" style="margin-left:0.5rem">${v.id ? "✓ Saved" : "Unsaved"}</span>
+  </div>`;
+}
+
+function addEmergencyRow() {
+  const list = document.getElementById("emergency-list");
+  const placeholder = list.querySelector("p.text-muted");
+  if (placeholder) placeholder.remove();
+  const existing = list.querySelectorAll(".drug-entry").length;
+  const div = document.createElement("div");
+  div.innerHTML = emergencyRowHTML(null, existing);
+  list.appendChild(div.firstElementChild);
+  list.lastElementChild.querySelector("[name='time']").value = nowLocalDT();
+  list.lastElementChild.scrollIntoView({ behavior: "smooth" });
+}
+
+function setNowEmergency(btn) {
+  const el = btn.closest(".drug-entry")?.querySelector("[name='time']");
+  if (el) el.value = nowLocalDT();
+}
+
+function quickEvent(drug, eventType) {
+  switchTab("monitoring");
+  const details = document.getElementById("emergency-details");
+  if (details) details.open = true;
+  setTimeout(() => {
+    addEmergencyRow();
+    const list = document.getElementById("emergency-list");
+    const row = list.lastElementChild;
+    if (!row || !row.classList.contains("drug-entry")) return;
+    if (eventType) row.querySelector("[name='event_type']").value = eventType;
+    if (drug) row.querySelector("[name='drug_name']").value = drug;
+    row.scrollIntoView({ behavior: "smooth" });
+    toast(`⚠ ${eventType} logged — fill in details`, "warning");
+  }, 150);
+}
+
+function renderEmergencyList() {
+  const list = document.getElementById("emergency-list");
+  if (!list) return;
+  list.innerHTML = "";
+  emergencyEntries.forEach((e, i) => {
+    const div = document.createElement("div");
+    div.innerHTML = emergencyRowHTML(e, i);
+    list.appendChild(div.firstElementChild);
+  });
+  if (!emergencyEntries.length) list.innerHTML = `<p class="text-muted text-sm" style="padding:0.5rem">No emergency events recorded.</p>`;
+}
+
+async function saveEmergencyEntry(btn) {
+  const row = btn.closest(".drug-entry");
+  const id = row.dataset.id ? parseInt(row.dataset.id) : null;
+  const getData = n => row.querySelector(`[name="${n}"]`)?.value || null;
+  const data = {
+    time: localDTtoISO(getData("time")) || new Date().toISOString(),
+    event_type: getData("event_type"),
+    drug_name: getData("drug_name"),
+    dose: parseFloat(getData("dose")) || null,
+    dose_unit: getData("dose_unit"),
+    volume: parseFloat(getData("volume")) || null,
+    route: getData("route"),
+    response: getData("response"),
+    note: getData("note"),
+  };
+  try {
+    let saved;
+    if (id) { saved = await API.updateEmergency(recordId, id, data); }
+    else { saved = await API.addEmergency(recordId, data); row.dataset.id = saved.id; }
+    row.querySelector("span.text-xs").textContent = "✓ Saved";
+    toast("Event saved", "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function removeEmergencyEntry(btn) {
+  const row = btn.closest(".drug-entry");
+  const id = row.dataset.id ? parseInt(row.dataset.id) : null;
+  if (id && !confirm("Remove event?")) return;
+  if (id) { try { await API.deleteEmergency(recordId, id); } catch (err) { toast(err.message, "error"); return; } }
+  row.remove();
+}
+
+// ── Countdown alerts ───────────────────────────────────────
+function addAlert() {
+  const label = document.getElementById("alert-label").value.trim() || "Alert";
+  const mins = parseInt(document.getElementById("alert-minutes").value) || 5;
+  if (mins < 1) { toast("Please enter a valid number of minutes", "warning"); return; }
+  quickAlert(label, mins);
+  document.getElementById("alert-label").value = "";
+  document.getElementById("alert-minutes").value = "";
+}
+
+function _playAlertSound() {
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  const tones = [880, 660, 880, 1100, 880];
+  tones.forEach((freq, i) => {
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.28;
+      gain.gain.setValueAtTime(0.5, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      osc.start(t);
+      osc.stop(t + 0.25);
+    } catch {}
+  });
+}
+
+function _fireAlert(div, label) {
+  const el = div.querySelector(".countdown");
+  if (el) el.textContent = "⚠ TIME!";
+  div.classList.add("fired");
+  div.style.background = "var(--danger)";
+  div.style.color = "#fff";
+  div.style.fontWeight = "700";
+  div.style.padding = "0.6rem 1rem";
+  div.style.borderRadius = "0.4rem";
+  div.style.animation = "pulse 0.5s ease-in-out 4";
+
+  _playAlertSound();
+  toast(`⏰ ${label} — TIME'S UP!`, "warning", 12000);
+
+  if ("Notification" in window && Notification.permission === "granted") {
+    try { new Notification("⏰ Alert Fired!", { body: label, tag: "vet-alert-" + Date.now() }); } catch {}
+  }
+}
+
+function quickAlert(label, mins) {
+  ensureAudioCtx(); // warm up audio context on user click
+  const container = document.getElementById("alerts-list");
+  const div = document.createElement("div");
+  div.className = "alert-item";
+  div.style.cssText = "display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;background:var(--bg-card);border-radius:0.4rem;border:1px solid var(--border);transition:background 0.3s";
+  div.innerHTML = `<span style="font-size:1.2rem">⏰</span>
+    <span style="flex:1"><strong>${label}</strong> — <span class="countdown">${mins}:00</span></span>
+    <button class="btn btn-ghost btn-sm btn-icon" onclick="this.closest('[class=alert-item]')?.remove() || this.parentElement.parentElement.remove()">✕</button>`;
+  container.appendChild(div);
+
+  const endTime = Date.now() + mins * 60000;
+  let fired = false;
+  const timer = setInterval(() => {
+    if (!div.isConnected) { clearInterval(timer); return; }
+    const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+    const m = Math.floor(remaining / 60), s = remaining % 60;
+    const el = div.querySelector(".countdown");
+    if (remaining <= 0 && !fired) {
+      fired = true;
+      clearInterval(timer);
+      _fireAlert(div, label);
+    } else if (!fired && el) {
+      el.textContent = `${m}:${String(s).padStart(2, "0")}`;
+    }
+  }, 500);
+  toast(`⏰ Alert set: "${label}" in ${mins} min`, "info");
+}
+
+// ── Edit patient ───────────────────────────────────────────
+function editPatient() {
+  if (patient?.id) window.location.href = `/patient?id=${patient.id}`;
+}
+
+// ── Export ─────────────────────────────────────────────────
+async function doExport(type) {
+  try {
+    toast(`Generating ${type.toUpperCase()}…`, "info");
+    const blob = await (type === "pdf" ? API.exportPDF(recordId) : API.exportDOCX(recordId));
+    downloadBlob(blob, `Anesthesia_${patient?.hn || recordId}_${new Date().toISOString().slice(0,10)}.${type === "pdf" ? "pdf" : "docx"}`);
+    toast(`${type.toUpperCase()} downloaded!`, "success");
+    const full = await API.getRecord(recordId);
+    record = full;
+    document.getElementById("banner-status").textContent = record.status;
+    document.getElementById("status-select").value = record.status;
+  } catch (err) { toast(err.message, "error"); }
+}
+
+// Recalc fluid when surgery times change
+["surgery_start","surgery_end"].forEach(id => {
+  document.getElementById(id)?.addEventListener("change", recalcFluidTotal);
+});
+
+// ── Init ───────────────────────────────────────────────────
+document.getElementById("mon-time").value = nowLocalDT();
+
+// Pre-warm AudioContext on first user interaction (required by autoplay policy)
+let sharedAudioCtx = null;
+function ensureAudioCtx() {
+  if (!sharedAudioCtx) {
+    try { sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+  }
+  if (sharedAudioCtx && sharedAudioCtx.state === "suspended") sharedAudioCtx.resume();
+  return sharedAudioCtx;
+}
+document.addEventListener("click", function warmUpAudio() {
+  ensureAudioCtx();
+  document.removeEventListener("click", warmUpAudio);
+}, { once: true });
+
+// Request browser notification permission for alerts
+if ("Notification" in window && Notification.permission === "default") {
+  Notification.requestPermission();
+}
+
+loadRecord();
+</script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Vet Anesthesia Records</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <div style="font-size:3rem;margin-bottom:0.5rem">🏥</div>
+      <h1>Vet Anesthesia</h1>
+      <p>Clinical Anesthetic Records System</p>
+    </div>
+
+    <form id="login-form">
+      <div class="form-group mb-3">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="Enter username" autocomplete="username" required>
+      </div>
+      <div class="form-group mb-4">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block btn-lg">Sign In</button>
+      <p id="login-error" class="text-danger text-sm mt-2 hidden"></p>
+    </form>
+
+    <p class="text-xs text-muted mt-4" style="text-align:center">
+      Default: <strong>admin / admin1234</strong>
+    </p>
+
+    <!-- Network access info -->
+    <div id="network-info" style="display:none;margin-top:1rem;padding:0.75rem 1rem;border-radius:8px;background:var(--bg-secondary,#f0fdf4);border:1px solid var(--border,#d1fae5);font-size:0.8rem;text-align:center">
+      <div style="font-weight:600;margin-bottom:0.25rem">Network Access (same Wi-Fi)</div>
+      <a id="lan-url" href="#" style="color:var(--primary,#0077b6);word-break:break-all;font-family:monospace"></a>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script>
+  // Redirect if already logged in
+  if (getToken()) window.location.href = "/dashboard";
+
+  // Show LAN URL if available
+  fetch("/api/server-info").then(r => r.json()).then(info => {
+    if (info.lan_ip && info.lan_ip !== window.location.hostname) {
+      const url = `http://${info.lan_ip}:${info.port}`;
+      const el = document.getElementById("network-info");
+      const link = document.getElementById("lan-url");
+      link.href = url;
+      link.textContent = url;
+      el.style.display = "block";
+    }
+  }).catch(() => {});
+
+  document.getElementById("login-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const btn = e.target.querySelector("button[type=submit]");
+    const errEl = document.getElementById("login-error");
+    btn.disabled = true;
+    btn.textContent = "Signing in…";
+    errEl.classList.add("hidden");
+
+    try {
+      const data = await API.login(
+        document.getElementById("username").value.trim(),
+        document.getElementById("password").value
+      );
+      localStorage.setItem("vet_token", data.access_token);
+      localStorage.setItem("vet_user", JSON.stringify({
+        id: data.user_id, username: data.username,
+        full_name: data.full_name, role: data.role,
+      }));
+      window.location.href = "/dashboard";
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "Sign In";
+    }
+  });
+</script>
+</body>
+</html>

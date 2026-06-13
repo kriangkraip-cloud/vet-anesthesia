@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Vet Anesthesia Records</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <!-- Header -->
+  <header class="app-header">
+    <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+    <a href="/dashboard" class="logo">🏥 <span>VetAnesthesia</span></a>
+    <div class="header-right">
+      <span class="text-sm text-muted" id="user-label"></span>
+      <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
+      <button class="btn btn-outline btn-sm" onclick="logout()">Sign Out</button>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <ul class="sidebar-nav">
+      <li class="sidebar-section">Navigation</li>
+      <li><a href="/dashboard" class="active"><span class="icon">📋</span>Dashboard</a></li>
+      <li><a href="/patient?mode=new"><span class="icon">➕</span>New Patient</a></li>
+      <li class="sidebar-section">System</li>
+      <li><a href="#" id="users-link"><span class="icon">👥</span>Users</a></li>
+      <li><a href="#" id="backup-link" class="hidden"><span class="icon">💾</span>Backup / Restore</a></li>
+      <li><a href="#" onclick="toggleTheme()"><span class="icon">🌙</span>Dark Mode</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main -->
+  <main class="main-content">
+    <!-- Stats -->
+    <div class="stat-cards" id="stat-cards">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#dbeafe">📋</div>
+        <div><div class="stat-value" id="stat-total">—</div><div class="stat-label">Total Records</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#fef9c3">⏳</div>
+        <div><div class="stat-value" id="stat-ongoing">—</div><div class="stat-label">Ongoing</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#d1f0ea">✓</div>
+        <div><div class="stat-value" id="stat-completed">—</div><div class="stat-label">Completed</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#f0fdf4">🐾</div>
+        <div><div class="stat-value" id="stat-patients">—</div><div class="stat-label">Patients</div></div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">📋 Anesthetic Records</h2>
+        <a href="/patient?mode=new" class="btn btn-primary"><span>➕</span> New Patient</a>
+      </div>
+
+      <div class="flex gap-2 mb-3" style="flex-wrap:wrap">
+        <input type="search" id="search-input" placeholder="Search HN, name, species, surgeon…"
+               style="max-width:320px; flex:1" oninput="debounceSearch()">
+        <select id="status-filter" onchange="loadRecords()" style="width:140px">
+          <option value="">All Status</option>
+          <option value="draft">Draft</option>
+          <option value="ongoing">Ongoing</option>
+          <option value="completed">Completed</option>
+          <option value="exported">Exported</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="loadRecords()">🔄 Refresh</button>
+      </div>
+
+      <!-- Desktop table -->
+      <div class="table-wrap table-mobile-cards" id="records-table-wrap">
+        <table id="records-table">
+          <thead>
+            <tr>
+              <th>HN</th>
+              <th>Patient</th>
+              <th>Species</th>
+              <th>Anesthesiologist</th>
+              <th>Surgeon</th>
+              <th>Date</th>
+              <th>Procedure</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="records-tbody">
+            <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted)">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Backup Modal (admin only) -->
+<div class="modal-overlay hidden" id="backup-modal">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-header">
+      <h3>💾 Backup &amp; Restore Database</h3>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('backup-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="backup-info-box" style="background:var(--bg-secondary);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1.25rem;font-size:0.85rem">
+        Loading database info…
+      </div>
+      <div style="margin-bottom:1.5rem">
+        <h4 style="margin-bottom:0.4rem">📥 Download Backup</h4>
+        <p class="text-sm text-muted" style="margin-bottom:0.6rem">
+          Downloads the entire database as a single <code>.db</code> file.
+          Copy this file to another computer to transfer all records and settings.
+        </p>
+        <button class="btn btn-primary btn-sm" onclick="downloadBackup()">Download Backup File</button>
+      </div>
+      <hr class="separator">
+      <div style="margin-top:1.25rem">
+        <h4 style="margin-bottom:0.4rem">📤 Restore from Backup</h4>
+        <p class="text-sm text-muted" style="margin-bottom:0.6rem">
+          Upload a <code>.db</code> backup file to replace the current database.
+          <strong style="color:var(--danger)">Warning: this overwrites all current data.</strong>
+          The current database is saved automatically before restore.
+        </p>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+          <input type="file" id="restore-file" accept=".db" style="font-size:0.85rem">
+          <button class="btn btn-danger btn-sm" onclick="restoreBackup()">Restore</button>
+        </div>
+        <p id="restore-status" class="text-sm mt-2" style="display:none"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Users Modal -->
+<div class="modal-overlay hidden" id="users-modal">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <h3>👥 User Management</h3>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('users-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="flex justify-between mb-3">
+        <span class="text-sm text-muted">Manage system users</span>
+        <button class="btn btn-primary btn-sm" onclick="showAddUser()">+ Add User</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="users-tbody"><tr><td colspan="5" style="text-align:center;padding:1rem">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div id="add-user-form" class="hidden mt-3">
+        <hr class="separator">
+        <h4 class="mb-2">Add New User</h4>
+        <div class="form-grid form-grid-2">
+          <div class="form-group"><label>Username</label><input id="nu-username" placeholder="username"></div>
+          <div class="form-group"><label>Full Name</label><input id="nu-fullname" placeholder="Dr. Name"></div>
+          <div class="form-group"><label>Password</label><input type="password" id="nu-password" placeholder="password"></div>
+          <div class="form-group"><label>Role</label>
+            <select id="nu-role">
+              <option value="staff">Staff</option>
+              <option value="anesthesiologist">Anesthesiologist</option>
+              <option value="surgeon">Surgeon</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-success btn-sm mt-2" onclick="createUser()">Save User</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/static/js/api.js"></script>
+<script>
+if (!requireAuth()) void 0;
+
+const user = getUser();
+if (user) document.getElementById("user-label").textContent = `${user.full_name || user.username} (${user.role})`;
+
+initSidebar();
+
+// Hide users/backup links for non-admin
+if (user?.role !== "admin") {
+  document.getElementById("users-link").classList.add("hidden");
+} else {
+  document.getElementById("backup-link").classList.remove("hidden");
+}
+document.getElementById("users-link").addEventListener("click", e => { e.preventDefault(); loadUsers(); openModal("users-modal"); });
+document.getElementById("backup-link").addEventListener("click", e => { e.preventDefault(); loadBackupInfo(); openModal("backup-modal"); });
+
+let searchTimer;
+function debounceSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(loadRecords, 400); }
+
+function statusBadge(s) {
+  const map = { draft: "badge-draft", ongoing: "badge-ongoing", completed: "badge-completed", exported: "badge-exported" };
+  return `<span class="badge ${map[s] || "badge-draft"}">${s || "draft"}</span>`;
+}
+
+async function loadRecords() {
+  const q = document.getElementById("search-input").value.trim();
+  const status = document.getElementById("status-filter").value;
+  const params = {};
+  if (q) params.q = q;
+  if (status) params.status = status;
+
+  try {
+    const records = await API.listRecords(params);
+    const tbody = document.getElementById("records-tbody");
+
+    // Update stats
+    document.getElementById("stat-total").textContent = records.length;
+    document.getElementById("stat-ongoing").textContent = records.filter(r => r.status === "ongoing").length;
+    document.getElementById("stat-completed").textContent = records.filter(r => r.status === "completed" || r.status === "exported").length;
+
+    // Count unique patients
+    const uniquePats = new Set(records.map(r => r.patient_id)).size;
+    document.getElementById("stat-patients").textContent = uniquePats;
+
+    if (records.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted)">
+        No records found. <a href="/patient?mode=new" style="color:var(--primary)">Register a new patient</a>
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = records.map(r => `
+      <tr>
+        <td data-label="HN">
+          <a href="/record?id=${r.id}" style="font-weight:700;color:var(--primary);text-decoration:none">${r.hn}</a>
+        </td>
+        <td data-label="Patient">
+          <a href="/record?id=${r.id}" style="color:var(--text);text-decoration:none">${r.patient_name}</a>
+        </td>
+        <td data-label="Species">${r.species || "—"}</td>
+        <td data-label="Anesthesiologist">${r.anesthesiologist || "—"}</td>
+        <td data-label="Surgeon">${r.surgeon || "—"}</td>
+        <td data-label="Date">${r.record_date ? new Date(r.record_date).toLocaleDateString("en-GB") : "—"}</td>
+        <td data-label="Procedure" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+            title="${r.surgical_procedure || ""}">${r.surgical_procedure || "—"}</td>
+        <td data-label="Status">${statusBadge(r.status)}</td>
+        <td data-label="Actions">
+          <div class="flex gap-1" style="flex-wrap:wrap">
+            <a href="/record?id=${r.id}" class="btn btn-primary btn-sm">Open</a>
+            <a href="/patient?id=${r.patient_id}" class="btn btn-outline btn-sm" title="Edit patient information">✏ Edit</a>
+            <button class="btn btn-outline btn-sm" onclick="exportPDF(${r.id})" title="Export PDF">PDF</button>
+            <button class="btn btn-danger btn-sm" onclick="deletePatientRecord(${r.patient_id},'${(r.patient_name||r.hn||"").replace(/'/g,"\\'")}',${r.id})" title="Delete patient & all records">🗑</button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+async function exportPDF(id) {
+  try {
+    toast("Generating PDF…", "info");
+    const blob = await API.exportPDF(id);
+    downloadBlob(blob, `anesthesia_${id}.pdf`);
+    toast("PDF downloaded!", "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function deletePatientRecord(patientId, patientName, _recordId) {
+  const confirmed = confirm(
+    `Are you sure you want to delete patient "${patientName}"?\n\nThis will permanently remove the patient and ALL their anesthetic records.\n\nThis action cannot be undone.`
+  );
+  if (!confirmed) return;
+  try {
+    await API.deletePatient(patientId);
+    toast(`Patient "${patientName}" deleted`, "success");
+    loadRecords();
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function loadUsers() {
+  try {
+    const users = await API.listUsers();
+    document.getElementById("users-tbody").innerHTML = users.map(u => `
+      <tr>
+        <td>${u.username}</td>
+        <td>${u.full_name || "—"}</td>
+        <td><span class="badge badge-draft">${u.role}</span></td>
+        <td>${u.is_active ? "✓ Active" : "✗ Inactive"}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.username}')">Delete</button></td>
+      </tr>
+    `).join("");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+function showAddUser() {
+  document.getElementById("add-user-form").classList.toggle("hidden");
+}
+
+async function createUser() {
+  const d = {
+    username: document.getElementById("nu-username").value.trim(),
+    full_name: document.getElementById("nu-fullname").value.trim(),
+    password: document.getElementById("nu-password").value,
+    role: document.getElementById("nu-role").value,
+  };
+  if (!d.username || !d.password) { toast("Username and password required", "warning"); return; }
+  try {
+    await API.createUser(d);
+    toast("User created!", "success");
+    document.getElementById("add-user-form").classList.add("hidden");
+    loadUsers();
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`Delete user "${username}"?`)) return;
+  try {
+    await API.deleteUser(id);
+    toast("User deleted", "success");
+    loadUsers();
+  } catch (err) { toast(err.message, "error"); }
+}
+
+loadRecords();
+
+// ── Backup & Restore ──────────────────────────────────────
+async function loadBackupInfo() {
+  try {
+    const info = await apiFetch("/api/backup/info");
+    document.getElementById("backup-info-box").innerHTML =
+      `<strong>Database file:</strong> ${info.db_path}<br>` +
+      `<strong>Size:</strong> ${info.size_kb} KB &nbsp;|&nbsp; ` +
+      `<strong>Last modified:</strong> ${info.last_modified ? new Date(info.last_modified).toLocaleString() : "—"}`;
+  } catch (e) {
+    document.getElementById("backup-info-box").textContent = "Could not load database info.";
+  }
+}
+
+async function downloadBackup() {
+  try {
+    toast("Preparing backup…", "info");
+    const blob = await apiFetch("/api/backup/download");
+    const ts = new Date().toISOString().slice(0,10);
+    downloadBlob(blob, `vetanesthesia_backup_${ts}.db`);
+    toast("Backup downloaded!", "success");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function restoreBackup() {
+  const fileInput = document.getElementById("restore-file");
+  const statusEl = document.getElementById("restore-status");
+  if (!fileInput.files.length) { toast("Select a .db backup file first", "warning"); return; }
+  if (!confirm("Restore database from this backup?\n\nAll current data will be replaced. The current database will be saved automatically as a safety backup.")) return;
+
+  const formData = new FormData();
+  formData.append("file", fileInput.files[0]);
+  statusEl.style.display = "block";
+  statusEl.textContent = "Restoring…";
+  statusEl.style.color = "var(--text-muted)";
+  try {
+    const token = getToken();
+    const resp = await fetch("/api/backup/restore", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || "Restore failed");
+    statusEl.textContent = data.message;
+    statusEl.style.color = "var(--success, green)";
+    toast("Database restored!", "success");
+    setTimeout(() => window.location.reload(), 2000);
+  } catch (e) {
+    statusEl.textContent = "Error: " + e.message;
+    statusEl.style.color = "var(--danger)";
+    toast(e.message, "error");
+  }
+}
+</script>
+</body>
+</html>

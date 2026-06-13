@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  vetanesthesia:
+    build: .
+    container_name: vetanesthesia
+    ports:
+      - "8100:8100"       # Change left side to use a different port: e.g. "9000:8100"
+    volumes:
+      - ./data:/app/data       # Database stored here — back this folder up
+      - ./exports:/app/exports # Exported PDF/DOCX files
+    restart: unless-stopped
+    environment:
+      - DATA_DIR=/app/data
+      - PORT=8100
