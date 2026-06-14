@@ -2,11 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System libs required by matplotlib
+# System libs required by matplotlib + Thai font packages for Railway server
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libfreetype6-dev \
     pkg-config \
+    fonts-thai-tlwg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

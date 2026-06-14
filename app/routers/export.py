@@ -2,7 +2,7 @@ import os, io
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from datetime import datetime
+from datetime import datetime, timedelta
 from ..database import get_db
 from .. import models, auth
 
@@ -10,6 +10,29 @@ router = APIRouter(prefix="/api/export", tags=["export"])
 
 EXPORTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "exports")
 os.makedirs(EXPORTS_DIR, exist_ok=True)
+
+# Thailand is always UTC+7 (no DST)
+_TH_OFFSET = timedelta(hours=7)
+
+# Thai font paths — bundled TTF takes priority, then system fallbacks
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_FONT_DIR = os.path.join(_BASE_DIR, "static", "fonts")
+_FONT_REGULAR = os.path.join(_FONT_DIR, "THSarabun.ttf")
+_FONT_BOLD    = os.path.join(_FONT_DIR, "THSarabun-Bold.ttf")
+
+
+def _register_thai_fonts():
+    """Register TH Sarabun with ReportLab for Thai text support."""
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        if _FONT_REGULAR and os.path.exists(_FONT_REGULAR):
+            pdfmetrics.registerFont(TTFont("THSarabun", _FONT_REGULAR))
+        if _FONT_BOLD and os.path.exists(_FONT_BOLD):
+            pdfmetrics.registerFont(TTFont("THSarabun-Bold", _FONT_BOLD))
+        return True
+    except Exception:
+        return False
 
 
 def _load_record(db: Session, record_id: int) -> models.AnestheticRecord:
@@ -32,22 +55,13 @@ def _load_record(db: Session, record_id: int) -> models.AnestheticRecord:
 
 
 def _to_local(dt):
-    """Convert a naive UTC datetime (from SQLite) to local time.
-    Pure date objects are returned unchanged (no time component to convert)."""
+    """Convert naive UTC datetime → Thailand time (UTC+7, no DST).
+    Pure date objects are returned unchanged."""
     if dt is None:
         return None
-    if not hasattr(dt, "strftime"):
-        return dt
-    from datetime import datetime as _DTType, timezone, timedelta
-    import time as _time
-    # date-only objects (no hour/minute) don't need timezone conversion
-    if not isinstance(dt, _DTType):
-        return dt
-    utc_dt = dt.replace(tzinfo=timezone.utc)
-    # time.timezone is seconds WEST of UTC (negative for UTC+7 → -25200)
-    local_offset = _time.altzone if _time.daylight else _time.timezone
-    local_dt = utc_dt - timedelta(seconds=local_offset)
-    return local_dt.replace(tzinfo=None)
+    if not isinstance(dt, datetime):
+        return dt  # date-only object, no conversion needed
+    return dt + _TH_OFFSET
 
 
 def _fmt_dt(dt) -> str:
@@ -227,15 +241,22 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image as RLImage
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
+    # Register Thai font so Thai characters render correctly
+    _register_thai_fonts()
+    _has_thai = os.path.exists(_FONT_REGULAR)
+    _fn  = "THSarabun"      if _has_thai else "Helvetica"
+    _fnb = "THSarabun-Bold" if _has_thai else "Helvetica-Bold"
+    _fs  = 11 if _has_thai else 9   # TH Sarabun reads well at 11pt
+
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=1.5*cm, rightMargin=1.5*cm)
     styles = getSampleStyleSheet()
     elements = []
 
-    title_style = ParagraphStyle("title", parent=styles["Title"], fontSize=14, spaceAfter=4)
-    h2 = ParagraphStyle("h2", parent=styles["Heading2"], fontSize=11, spaceAfter=2, spaceBefore=8)
-    normal = styles["Normal"]
-    small = ParagraphStyle("small", parent=normal, fontSize=8)
+    title_style = ParagraphStyle("title", parent=styles["Title"], fontSize=16, spaceAfter=4, fontName=_fnb)
+    h2 = ParagraphStyle("h2", parent=styles["Heading2"], fontSize=_fs+1, spaceAfter=2, spaceBefore=8, fontName=_fnb)
+    normal = ParagraphStyle("normal_th", parent=styles["Normal"], fontSize=_fs, fontName=_fn)
+    small  = ParagraphStyle("small_th",  parent=styles["Normal"], fontSize=_fs-1, fontName=_fn)
 
     TEAL = colors.HexColor("#0077b6")
     LIGHT = colors.HexColor("#e8f4f8")
@@ -334,6 +355,8 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
             t.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), TEAL),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), _fnb),
+                ("FONTNAME", (0, 1), (-1, -1), _fn),
                 ("FONTSIZE", (0, 0), (-1, -1), 7),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
@@ -389,6 +412,8 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), TEAL),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), _fnb),
+            ("FONTNAME", (0, 1), (-1, -1), _fn),
             ("FONTSIZE", (0, 0), (-1, -1), 7),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
@@ -430,6 +455,8 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), TEAL),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), _fnb),
+            ("FONTNAME", (0, 1), (-1, -1), _fn),
             ("FONTSIZE", (0, 0), (-1, -1), 8),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
             ("TOPPADDING", (0, 0), (-1, -1), 3),
@@ -453,6 +480,8 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e63946")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), _fnb),
+            ("FONTNAME", (0, 1), (-1, -1), _fn),
             ("FONTSIZE", (0, 0), (-1, -1), 7),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
             ("TOPPADDING", (0, 0), (-1, -1), 3),
@@ -493,6 +522,7 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
         sig_data.append(["Recorded by:", recorder_name, "", ""])
     t = Table(sig_data, colWidths=[3*cm, 6*cm, 3*cm, 6*cm])
     t.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), _fn),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
     ]))
@@ -507,9 +537,30 @@ def _build_docx(record: models.AnestheticRecord, recorder_name: str = "") -> io.
     from docx import Document
     from docx.shared import Pt, Cm, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from lxml import etree
 
     doc = Document()
     p = record.patient
+
+    # Set TH Sarabun as document default font for Thai language support
+    if os.path.exists(_FONT_REGULAR):
+        styles_element = doc.styles.element
+        rPrDefault = styles_element.find(qn("w:docDefaults") + "/" + qn("w:rPrDefault") + "/" + qn("w:rPr"))
+        if rPrDefault is None:
+            docDefaults = styles_element.find(qn("w:docDefaults"))
+            if docDefaults is None:
+                docDefaults = etree.SubElement(styles_element, qn("w:docDefaults"))
+            rPrDefault_parent = docDefaults.find(qn("w:rPrDefault"))
+            if rPrDefault_parent is None:
+                rPrDefault_parent = etree.SubElement(docDefaults, qn("w:rPrDefault"))
+            rPrDefault = etree.SubElement(rPrDefault_parent, qn("w:rPr"))
+        rFonts = rPrDefault.find(qn("w:rFonts"))
+        if rFonts is None:
+            rFonts = etree.SubElement(rPrDefault, qn("w:rFonts"))
+        rFonts.set(qn("w:ascii"), "TH Sarabun New")
+        rFonts.set(qn("w:hAnsi"), "TH Sarabun New")
+        rFonts.set(qn("w:cs"),    "TH Sarabun New")
 
     for section in doc.sections:
         section.top_margin = Cm(1.5)
