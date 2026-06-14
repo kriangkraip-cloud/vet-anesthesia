@@ -31,16 +31,34 @@ def _load_record(db: Session, record_id: int) -> models.AnestheticRecord:
     return record
 
 
+def _to_local(dt):
+    """Convert a naive UTC datetime (from SQLite) to local time."""
+    if dt is None:
+        return None
+    if not hasattr(dt, "strftime"):
+        return dt
+    # SQLite returns naive datetimes stored as UTC — attach UTC then convert to local
+    from datetime import timezone
+    import time as _time
+    utc_dt = dt.replace(tzinfo=timezone.utc)
+    local_offset = _time.timezone if (_time.daylight == 0 or not _time.daylight) else _time.altzone
+    from datetime import timedelta
+    local_dt = utc_dt - timedelta(seconds=local_offset)
+    return local_dt.replace(tzinfo=None)
+
+
 def _fmt_dt(dt) -> str:
     if dt is None:
         return ""
-    return dt.strftime("%H:%M") if hasattr(dt, "strftime") else str(dt)
+    local = _to_local(dt)
+    return local.strftime("%H:%M") if hasattr(local, "strftime") else str(dt)
 
 
 def _fmt_date(d) -> str:
     if d is None:
         return ""
-    return d.strftime("%d/%m/%Y") if hasattr(d, "strftime") else str(d)
+    local = _to_local(d)
+    return local.strftime("%d/%m/%Y") if hasattr(local, "strftime") else str(d)
 
 
 def _calc_total_fluid(record, fluid_entries, monitoring_entries) -> float:
