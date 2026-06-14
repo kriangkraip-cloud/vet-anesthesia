@@ -126,7 +126,7 @@ def _generate_monitoring_chart(monitoring_entries) -> "io.BytesIO | None":
     if not monitoring_entries or len(monitoring_entries) < 2:
         return None
 
-    times = [m.time for m in monitoring_entries]
+    times = [_to_local(m.time) for m in monitoring_entries]
 
     fig, ax = plt.subplots(figsize=(13, 4))
     ax2 = ax.twinx()  # แกน Y ขวาสำหรับ Gas%
@@ -292,7 +292,7 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
 
     # Header
     elements.append(Paragraph("VETERINARY ANESTHETIC RECORD", title_style))
-    elements.append(Paragraph(f"Generated: {datetime.now().strftime('%d/%m/%Y %H:%M')}", small))
+    elements.append(Paragraph(f"Generated: {(datetime.utcnow() + _TH_OFFSET).strftime('%d/%m/%Y %H:%M')}", small))
     if recorder_name:
         elements.append(Paragraph(f"<b>Recorded by:</b> {recorder_name}", small))
     elements.append(Spacer(1, 0.3*cm))
@@ -594,7 +594,7 @@ def _build_docx(record: models.AnestheticRecord, recorder_name: str = "") -> io.
                 row[i].paragraphs[0].runs[0].font.size = Pt(8)
 
     doc.add_heading("VETERINARY ANESTHETIC RECORD", 0)
-    gen_para = doc.add_paragraph(f"Generated: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    gen_para = doc.add_paragraph(f"Generated: {(datetime.utcnow() + _TH_OFFSET).strftime('%d/%m/%Y %H:%M')}")
     gen_para.runs[0].font.size = Pt(9)
     if recorder_name:
         rec_para = doc.add_paragraph()
