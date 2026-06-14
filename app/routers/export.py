@@ -32,17 +32,20 @@ def _load_record(db: Session, record_id: int) -> models.AnestheticRecord:
 
 
 def _to_local(dt):
-    """Convert a naive UTC datetime (from SQLite) to local time."""
+    """Convert a naive UTC datetime (from SQLite) to local time.
+    Pure date objects are returned unchanged (no time component to convert)."""
     if dt is None:
         return None
     if not hasattr(dt, "strftime"):
         return dt
-    # SQLite returns naive datetimes stored as UTC — attach UTC then convert to local
-    from datetime import timezone
+    from datetime import datetime as _DTType, timezone, timedelta
     import time as _time
+    # date-only objects (no hour/minute) don't need timezone conversion
+    if not isinstance(dt, _DTType):
+        return dt
     utc_dt = dt.replace(tzinfo=timezone.utc)
-    local_offset = _time.timezone if (_time.daylight == 0 or not _time.daylight) else _time.altzone
-    from datetime import timedelta
+    # time.timezone is seconds WEST of UTC (negative for UTC+7 → -25200)
+    local_offset = _time.altzone if _time.daylight else _time.timezone
     local_dt = utc_dt - timedelta(seconds=local_offset)
     return local_dt.replace(tzinfo=None)
 
