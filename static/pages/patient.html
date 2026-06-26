@@ -294,25 +294,19 @@ async function savePatient() {
       patient = await API.createPatient(data);
       toast("Patient registered!", "success");
 
-      // If case details were filled, create a record immediately
-      const hasCase = document.getElementById("surgical_procedure").value ||
-                      document.getElementById("diagnosis").value;
-      if (hasCase) {
-        const record = await API.createRecord({
-          patient_id: patient.id,
-          record_date: document.getElementById("record_date").value || new Date().toISOString().slice(0, 10),
-          status: "waiting",
-          surgeon: document.getElementById("surgeon").value || "",
-          anesthesiologist: document.getElementById("anesthesiologist").value || "",
-          assistant: document.getElementById("assistant").value || "",
-          surgical_procedure: document.getElementById("surgical_procedure").value || "",
-          diagnosis: document.getElementById("diagnosis").value || "",
-          weight_at_record: data.weight,
-        });
-        window.location.href = `/record?id=${record.id}`;
-        return;
-      }
-      window.location.href = `/patient?id=${patient.id}`;
+      // Always create a record so the patient appears in the dashboard immediately
+      const record = await API.createRecord({
+        patient_id: patient.id,
+        record_date: document.getElementById("record_date").value || new Date().toISOString().slice(0, 10),
+        status: "waiting",
+        surgeon: document.getElementById("surgeon").value || "",
+        anesthesiologist: document.getElementById("anesthesiologist").value || "",
+        assistant: document.getElementById("assistant").value || "",
+        surgical_procedure: document.getElementById("surgical_procedure").value || "",
+        diagnosis: document.getElementById("diagnosis").value || "",
+        weight_at_record: data.weight,
+      });
+      window.location.href = `/record?id=${record.id}`;
       return;
     }
     ind.textContent = "✓ Saved"; ind.className = "autosave-indicator saved";
