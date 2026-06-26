@@ -45,6 +45,7 @@ def _load_record(db: Session, record_id: int) -> models.AnestheticRecord:
             joinedload(models.AnestheticRecord.fluid_entries),
             joinedload(models.AnestheticRecord.emergency_events),
             joinedload(models.AnestheticRecord.surgical_procedures),
+            joinedload(models.AnestheticRecord.procedure_images),
         )
         .filter(models.AnestheticRecord.id == record_id)
         .first()
@@ -52,6 +53,11 @@ def _load_record(db: Session, record_id: int) -> models.AnestheticRecord:
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     return record
+
+
+def _images_dir(record_id: int) -> str:
+    from ..database import DATA_DIR
+    return os.path.join(DATA_DIR, "procedure_images", str(record_id))
 
 
 def _to_local(dt):
@@ -489,6 +495,53 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
         ]))
         elements.append(t)
 
+    # Procedure section
+    has_procedure = any([record.procedure_notes, record.sample_collection, record.postop_medications])
+    export_images = [img for img in (getattr(record, "procedure_images", None) or []) if img.for_export]
+    if has_procedure or export_images:
+        section("Procedure Record")
+        if record.procedure_notes:
+            elements.append(Paragraph("<b>Procedure Notes:</b>", small))
+            for line in record.procedure_notes.split("\n"):
+                elements.append(Paragraph(line or " ", small))
+            elements.append(Spacer(1, 0.2*cm))
+        if record.sample_collection:
+            elements.append(Paragraph(f"<b>Sample Collection:</b> {record.sample_collection}", small))
+        if record.postop_medications:
+            elements.append(Paragraph(f"<b>Postoperative Medications:</b> {record.postop_medications}", small))
+        if export_images:
+            elements.append(Spacer(1, 0.3*cm))
+            elements.append(Paragraph("<b>Procedure Images:</b>", small))
+            img_row = []
+            for img in export_images:
+                img_path = os.path.join(_images_dir(record.id), img.filename)
+                if not os.path.exists(img_path):
+                    continue
+                try:
+                    rl_img = RLImage(img_path, width=5.5*cm, height=4*cm, kind="proportional")
+                    caption = Paragraph(img.label or img.original_name or "", small)
+                    img_row.append([rl_img, caption])
+                except Exception:
+                    pass
+            if img_row:
+                # 3-column grid
+                col_w = [6*cm] * min(len(img_row), 3)
+                for chunk_start in range(0, len(img_row), 3):
+                    chunk = img_row[chunk_start:chunk_start+3]
+                    imgs = [c[0] for c in chunk]
+                    captions = [c[1] for c in chunk]
+                    while len(imgs) < 3:
+                        imgs.append(Paragraph("", small))
+                        captions.append(Paragraph("", small))
+                    t = Table([imgs, captions], colWidths=[6*cm, 6*cm, 6*cm])
+                    t.setStyle(TableStyle([
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]))
+                    elements.append(t)
+                    elements.append(Spacer(1, 0.2*cm))
+
     # Surgical timing
     section("Timing")
     kv_table([
@@ -698,6 +751,37 @@ def _build_docx(record: models.AnestheticRecord, recorder_name: str = "") -> io.
                  f"{e.dose} {e.dose_unit}" if e.dose else "", e.volume,
                  e.route, e.response, e.note] for e in record.emergency_events]
         add_table(["Time", "Event", "Drug", "Dose", "Vol (mL)", "Route", "Response", "Note"], rows)
+
+    # Procedure section
+    has_proc = any([record.procedure_notes, record.sample_collection, record.postop_medications])
+    export_imgs = [img for img in (getattr(record, "procedure_images", None) or []) if img.for_export]
+    if has_proc or export_imgs:
+        add_heading("Procedure Record", 1)
+        if record.procedure_notes:
+            add_kv("Procedure Notes", "")
+            notes_p = doc.add_paragraph(record.procedure_notes)
+            notes_p.paragraph_format.space_after = Pt(4)
+            if notes_p.runs:
+                notes_p.runs[0].font.size = Pt(9)
+        if record.sample_collection:
+            add_kv("Sample Collection", record.sample_collection)
+        if record.postop_medications:
+            add_kv("Postoperative Medications", record.postop_medications)
+        if export_imgs:
+            doc.add_paragraph("Procedure Images:").runs[0].bold = True
+            for img in export_imgs:
+                img_path = os.path.join(_images_dir(record.id), img.filename)
+                if not os.path.exists(img_path):
+                    continue
+                try:
+                    doc.add_picture(img_path, width=Cm(7))
+                    if img.label or img.original_name:
+                        cap = doc.add_paragraph(img.label or img.original_name or "")
+                        cap.paragraph_format.space_after = Pt(6)
+                        if cap.runs:
+                            cap.runs[0].font.size = Pt(8)
+                except Exception:
+                    pass
 
     add_heading("Timing", 1)
     add_kv("Anesthesia Start / End", f"{_fmt_dt(record.anesthesia_start)} / {_fmt_dt(record.anesthesia_end)}")

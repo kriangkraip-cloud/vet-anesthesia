@@ -305,3 +305,20 @@ class ProcedureImage(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     record = relationship("AnestheticRecord", back_populates="procedure_images")
+
+
+class SurgeonDuty(Base):
+    __tablename__ = "surgeon_duties"
+
+    id = Column(Integer, primary_key=True, index=True)
+    duty_date = Column(Date, nullable=False, index=True)
+    surgeon_name = Column(String(100), nullable=False)
+    duty_start = Column(String(10))   # e.g. "08:00"
+    duty_end = Column(String(10))     # e.g. "17:00"
+    duty_type = Column(String(50))    # Primary, On-call, etc.
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    created_by = relationship("User", foreign_keys=[created_by_id])

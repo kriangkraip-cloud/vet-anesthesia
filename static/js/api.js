@@ -146,6 +146,15 @@ const API = {
   },
   deleteImage: (rid, iid) => apiFetch(`/api/records/${rid}/images/${iid}`, { method: "DELETE" }),
   imageUrl: (rid, filename) => `/api/images/${rid}/${filename}?token=${getToken()}`,
+
+  // Surgeon Duty Schedule
+  listDuties: params => {
+    const qs = new URLSearchParams(params || {}).toString();
+    return apiFetch(`/api/duties${qs ? "?" + qs : ""}`);
+  },
+  createDuty: d => apiFetch("/api/duties", { method: "POST", body: JSON.stringify(d) }),
+  updateDuty: (id, d) => apiFetch(`/api/duties/${id}`, { method: "PUT", body: JSON.stringify(d) }),
+  deleteDuty: id => apiFetch(`/api/duties/${id}`, { method: "DELETE" }),
 };
 
 /* ── Toast notifications ────────────────────────────────── */

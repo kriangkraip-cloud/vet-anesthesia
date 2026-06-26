@@ -318,3 +318,126 @@ async def serve_image(
     if not os.path.exists(file_path) or not os.path.abspath(file_path).startswith(os.path.abspath(img_dir)):
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(file_path)
+
+
+# ── Surgeon Duty Schedule ────────────────────────────────────────────────────
+
+@router.get("/duties")
+async def list_duties(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    query = db.query(models.SurgeonDuty)
+    if start_date:
+        try:
+            query = query.filter(models.SurgeonDuty.duty_date >= date.fromisoformat(start_date))
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            query = query.filter(models.SurgeonDuty.duty_date <= date.fromisoformat(end_date))
+        except ValueError:
+            pass
+    duties = query.order_by(models.SurgeonDuty.duty_date, models.SurgeonDuty.duty_start).all()
+    return [
+        {
+            "id": d.id,
+            "duty_date": d.duty_date.isoformat() if d.duty_date else None,
+            "surgeon_name": d.surgeon_name,
+            "duty_start": d.duty_start,
+            "duty_end": d.duty_end,
+            "duty_type": d.duty_type,
+            "notes": d.notes,
+        }
+        for d in duties
+    ]
+
+
+@router.post("/duties")
+async def create_duty(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role not in ("admin", "surgeon", "anesthesiologist"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    try:
+        duty_date = date.fromisoformat(data.get("duty_date", ""))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid duty_date")
+    surgeon_name = (data.get("surgeon_name") or "").strip()
+    if not surgeon_name:
+        raise HTTPException(status_code=400, detail="surgeon_name required")
+    duty = models.SurgeonDuty(
+        duty_date=duty_date,
+        surgeon_name=surgeon_name,
+        duty_start=data.get("duty_start") or None,
+        duty_end=data.get("duty_end") or None,
+        duty_type=data.get("duty_type") or None,
+        notes=data.get("notes") or None,
+        created_by_id=current_user.id,
+    )
+    db.add(duty)
+    db.commit()
+    db.refresh(duty)
+    return {
+        "id": duty.id,
+        "duty_date": duty.duty_date.isoformat(),
+        "surgeon_name": duty.surgeon_name,
+        "duty_start": duty.duty_start,
+        "duty_end": duty.duty_end,
+        "duty_type": duty.duty_type,
+        "notes": duty.notes,
+    }
+
+
+@router.put("/duties/{duty_id}")
+async def update_duty(
+    duty_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role not in ("admin", "surgeon", "anesthesiologist"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    duty = db.query(models.SurgeonDuty).filter(models.SurgeonDuty.id == duty_id).first()
+    if not duty:
+        raise HTTPException(status_code=404, detail="Duty not found")
+    for field in ("surgeon_name", "duty_start", "duty_end", "duty_type", "notes"):
+        if field in data:
+            setattr(duty, field, data[field] or None)
+    if "duty_date" in data:
+        try:
+            duty.duty_date = date.fromisoformat(data["duty_date"])
+        except (ValueError, TypeError):
+            pass
+    duty.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(duty)
+    return {
+        "id": duty.id,
+        "duty_date": duty.duty_date.isoformat(),
+        "surgeon_name": duty.surgeon_name,
+        "duty_start": duty.duty_start,
+        "duty_end": duty.duty_end,
+        "duty_type": duty.duty_type,
+        "notes": duty.notes,
+    }
+
+
+@router.delete("/duties/{duty_id}")
+async def delete_duty(
+    duty_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role not in ("admin", "surgeon", "anesthesiologist"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    duty = db.query(models.SurgeonDuty).filter(models.SurgeonDuty.id == duty_id).first()
+    if not duty:
+        raise HTTPException(status_code=404, detail="Duty not found")
+    db.delete(duty)
+    db.commit()
+    return {"ok": True}

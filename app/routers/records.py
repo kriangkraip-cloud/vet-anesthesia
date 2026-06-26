@@ -121,7 +121,7 @@ async def update_record(
     record = db.query(models.AnestheticRecord).filter(models.AnestheticRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
-    for field, value in data.model_dump(exclude_none=True).items():
+    for field, value in data.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     record.updated_by_id = current_user.id
     record.updated_at = datetime.utcnow()
