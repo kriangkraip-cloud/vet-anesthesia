@@ -75,6 +75,8 @@ async def get_record(
             joinedload(models.AnestheticRecord.fluid_entries),
             joinedload(models.AnestheticRecord.emergency_events),
             joinedload(models.AnestheticRecord.surgical_procedures),
+            joinedload(models.AnestheticRecord.or_booking),
+            joinedload(models.AnestheticRecord.procedure_images),
         )
         .filter(models.AnestheticRecord.id == record_id)
         .first()

@@ -372,7 +372,7 @@ async function loadRecords() {
     // Update stats
     document.getElementById("stat-total").textContent = records.length;
     document.getElementById("stat-ongoing").textContent = records.filter(r => r.status === "ongoing").length;
-    document.getElementById("stat-completed").textContent = records.filter(r => r.status === "completed" || r.status === "exported").length;
+    document.getElementById("stat-completed").textContent = records.filter(r => r.status === "complete" || r.status === "completed" || r.status === "exported").length;
 
     // Count unique patients
     const uniquePats = new Set(records.map(r => r.patient_id)).size;
