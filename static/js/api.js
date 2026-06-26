@@ -25,7 +25,7 @@ async function apiFetch(path, options = {}) {
 
   const resp = await fetch(API_BASE + path, { ...options, headers });
 
-  if (resp.status === 401) { logout(); return; }
+  if (resp.status === 401) { logout(); throw new Error("Session expired"); }
 
   if (!resp.ok) {
     let msg = `HTTP ${resp.status}`;

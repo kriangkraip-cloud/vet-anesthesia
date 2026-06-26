@@ -59,7 +59,10 @@ async def restore_backup(
     # get any columns added after the backup was created
     try:
         from sqlalchemy import text
-        from ..database import SessionLocal
+        from ..database import SessionLocal, Base
+        # Create any tables that exist in the model but not in the restored DB
+        # (e.g. or_bookings, procedure_images added in a later version)
+        Base.metadata.create_all(bind=engine)
         mig_db = SessionLocal()
         migrations = [
             "ALTER TABLE monitoring_entries ADD COLUMN fluid_rate FLOAT",
