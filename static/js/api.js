@@ -107,6 +107,45 @@ const API = {
   // Export
   exportPDF: rid => apiFetch(`/api/export/${rid}/pdf`),
   exportDOCX: rid => apiFetch(`/api/export/${rid}/docx`),
+
+  // OR Bookings
+  upsertBooking: (rid, d) => apiFetch(`/api/records/${rid}/booking`, { method: "POST", body: JSON.stringify(d) }),
+  deleteBooking: rid => apiFetch(`/api/records/${rid}/booking`, { method: "DELETE" }),
+  listBookings: params => {
+    const qs = new URLSearchParams(params || {}).toString();
+    return apiFetch(`/api/bookings${qs ? "?" + qs : ""}`);
+  },
+  checkSchedule: params => {
+    const qs = new URLSearchParams(params || {}).toString();
+    return apiFetch(`/api/schedule/check${qs ? "?" + qs : ""}`);
+  },
+
+  // Procedure Templates
+  listTemplates: () => apiFetch("/api/procedure-templates"),
+  createTemplate: d => apiFetch("/api/procedure-templates", { method: "POST", body: JSON.stringify(d) }),
+  deleteTemplate: id => apiFetch(`/api/procedure-templates/${id}`, { method: "DELETE" }),
+
+  // Procedure Images
+  uploadImage: (rid, file) => {
+    const token = getToken();
+    const form = new FormData();
+    form.append("file", file);
+    return fetch(`/api/records/${rid}/images`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: form,
+    }).then(async r => {
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || "Upload failed"); }
+      return r.json();
+    });
+  },
+  listImages: rid => apiFetch(`/api/records/${rid}/images`),
+  updateImage: (rid, iid, params) => {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/api/records/${rid}/images/${iid}?${qs}`, { method: "PUT" });
+  },
+  deleteImage: (rid, iid) => apiFetch(`/api/records/${rid}/images/${iid}`, { method: "DELETE" }),
+  imageUrl: (rid, filename) => `/api/images/${rid}/${filename}?token=${getToken()}`,
 };
 
 /* ── Toast notifications ────────────────────────────────── */

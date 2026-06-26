@@ -3,6 +3,8 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
 
+# Status values: waiting | ongoing | complete
+
 
 class User(Base):
     __tablename__ = "users"
@@ -47,7 +49,7 @@ class AnestheticRecord(Base):
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
     record_date = Column(Date)
-    status = Column(String(20), default="draft")  # draft, ongoing, completed, exported
+    status = Column(String(20), default="waiting")  # waiting, ongoing, complete
 
     # Pre-anesthetic evaluation
     asa_status = Column(String(10))
@@ -92,6 +94,11 @@ class AnestheticRecord(Base):
     surgery_start = Column(DateTime)
     surgery_end = Column(DateTime)
 
+    # Procedure notes (new Procedure tab)
+    procedure_notes = Column(Text)
+    sample_collection = Column(Text)
+    postop_medications = Column(Text)
+
     # Recovery
     extubation_time = Column(DateTime)
     sternal_time = Column(DateTime)
@@ -99,8 +106,6 @@ class AnestheticRecord(Base):
     recovery_quality = Column(String(50))
     recovery_complications = Column(Text)
     postop_pain_management = Column(Text)
-    sample_collection = Column(Text)
-    postop_medications = Column(Text)
     postop_monitoring = Column(Text)
     final_note = Column(Text)
 
@@ -119,6 +124,8 @@ class AnestheticRecord(Base):
     emergency_events = relationship("EmergencyEvent", back_populates="record", cascade="all, delete-orphan", order_by="EmergencyEvent.time")
     surgical_procedures = relationship("SurgicalProcedure", back_populates="record", cascade="all, delete-orphan", order_by="SurgicalProcedure.sort_order")
     export_history = relationship("ExportHistory", back_populates="record", cascade="all, delete-orphan")
+    or_booking = relationship("ORBooking", back_populates="record", uselist=False, cascade="all, delete-orphan")
+    procedure_images = relationship("ProcedureImage", back_populates="record", cascade="all, delete-orphan", order_by="ProcedureImage.sort_order")
 
 
 class DrugEntry(Base):
@@ -254,3 +261,47 @@ class ExportHistory(Base):
 
     record = relationship("AnestheticRecord", back_populates="export_history")
     exported_by = relationship("User", foreign_keys=[exported_by_id])
+
+
+class ORBooking(Base):
+    __tablename__ = "or_bookings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    record_id = Column(Integer, ForeignKey("anesthetic_records.id"), nullable=False, unique=True)
+    surgery_date = Column(Date)
+    or_number = Column(Integer, default=1)   # 1 or 2
+    slot_start = Column(Integer, default=13)  # starting hour (13–20)
+    num_slots = Column(Integer, default=1)    # how many 1-hour slots
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    record = relationship("AnestheticRecord", back_populates="or_booking")
+
+
+class ProcedureTemplate(Base):
+    __tablename__ = "procedure_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    is_system = Column(Boolean, default=False)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    created_by = relationship("User", foreign_keys=[created_by_id])
+
+
+class ProcedureImage(Base):
+    __tablename__ = "procedure_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    record_id = Column(Integer, ForeignKey("anesthetic_records.id"), nullable=False)
+    filename = Column(String(255))
+    original_name = Column(String(255))
+    label = Column(String(500), default="")
+    for_export = Column(Boolean, default=False)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    record = relationship("AnestheticRecord", back_populates="procedure_images")

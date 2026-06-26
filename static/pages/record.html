@@ -76,6 +76,7 @@
       <li><a href="#" onclick="switchTab('equipment')">⚙️ Airway & Equipment</a></li>
       <li><a href="#" onclick="switchTab('monitoring')">📈 Monitoring</a></li>
       <li><a href="#" onclick="switchTab('fluids')">💧 Fluids & CRI</a></li>
+      <li><a href="#" onclick="switchTab('procedure')">🩺 Procedure</a></li>
       <li><a href="#" onclick="switchTab('recovery')">🛏 Recovery</a></li>
       <li class="sidebar-section">Export</li>
       <li><a href="#" onclick="doExport('pdf')">📄 Export PDF</a></li>
@@ -105,10 +106,9 @@
         </div>
         <div class="flex gap-2" style="flex-wrap:wrap">
           <select id="status-select" class="btn btn-outline btn-sm" onchange="updateStatus()" style="padding:0.3rem 0.5rem;cursor:pointer">
-            <option value="draft">Draft</option>
+            <option value="waiting">Waiting</option>
             <option value="ongoing">Ongoing</option>
-            <option value="completed">Completed</option>
-            <option value="exported">Exported</option>
+            <option value="complete">Complete</option>
           </select>
           <button class="btn btn-outline btn-sm" id="edit-patient-btn" onclick="editPatient()">✏ Edit Patient</button>
           <button class="btn btn-outline btn-sm" onclick="doExport('pdf')">📄 PDF</button>
@@ -126,6 +126,7 @@
       <button class="tab-btn" onclick="switchTab('equipment')" id="tab-equipment">⚙️ Airway</button>
       <button class="tab-btn" onclick="switchTab('monitoring')" id="tab-monitoring">📈 Monitoring</button>
       <button class="tab-btn" onclick="switchTab('fluids')" id="tab-fluids">💧 Fluids</button>
+      <button class="tab-btn" onclick="switchTab('procedure')" id="tab-procedure">🩺 Procedure</button>
       <button class="tab-btn" onclick="switchTab('recovery')" id="tab-recovery">🛏 Recovery</button>
     </div>
 
@@ -201,6 +202,64 @@
             <input type="text" id="assistant" placeholder="Assistant name"></div>
         </div>
         <datalist id="user-dl"></datalist>
+      </div>
+
+      <!-- OR Booking -->
+      <div class="card" style="border-left:3px solid #0077b6">
+        <div class="card-header">
+          <h2 class="card-title" style="color:#0077b6">🏥 Operating Room Booking</h2>
+          <span id="booking-status-badge" class="badge" style="display:none"></span>
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="form-group">
+            <label>Surgery Date</label>
+            <input type="date" id="booking-date" onchange="checkORAvailability()">
+          </div>
+          <div class="form-group">
+            <label>Operating Room</label>
+            <select id="booking-or" onchange="checkORAvailability()">
+              <option value="1">OR 1</option>
+              <option value="2">OR 2</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Start Time</label>
+            <select id="booking-slot-start" onchange="checkORAvailability()">
+              <option value="8">08:00</option>
+              <option value="9">09:00</option>
+              <option value="10">10:00</option>
+              <option value="11">11:00</option>
+              <option value="12">12:00</option>
+              <option value="13" selected>13:00</option>
+              <option value="14">14:00</option>
+              <option value="15">15:00</option>
+              <option value="16">16:00</option>
+              <option value="17">17:00</option>
+              <option value="18">18:00</option>
+              <option value="19">19:00</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Number of Slots (1 slot = 1 hr)</label>
+            <select id="booking-num-slots">
+              <option value="1">1 slot (1 hr)</option>
+              <option value="2">2 slots (2 hr)</option>
+              <option value="3">3 slots (3 hr)</option>
+              <option value="4">4 slots (4 hr)</option>
+              <option value="5">5 slots (5 hr)</option>
+              <option value="6">6 slots (6 hr)</option>
+            </select>
+          </div>
+          <div class="form-group" style="align-self:end">
+            <button class="btn btn-primary" onclick="saveBooking()">📅 Save Booking</button>
+            <button class="btn btn-ghost btn-sm" onclick="cancelBooking()" id="cancel-booking-btn" style="display:none;margin-left:0.4rem">Remove</button>
+          </div>
+        </div>
+        <div id="booking-warning" class="text-sm" style="color:var(--warning,#d97706);margin-top:0.5rem;display:none"></div>
+        <div id="booking-day-schedule" class="mt-2" style="display:none">
+          <div class="text-sm text-muted" style="margin-bottom:0.3rem">Other bookings this day (same OR):</div>
+          <div id="booking-day-list" style="display:flex;flex-wrap:wrap;gap:0.4rem"></div>
+        </div>
       </div>
     </div>
 
@@ -694,6 +753,72 @@
       </div>
     </div>
 
+    <!-- ── TAB: Procedure Record ──────────────────────────── -->
+    <div class="tab-panel" id="panel-procedure">
+
+      <!-- Procedure Notes + Templates -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🩺 Procedure Record</h2>
+          <button class="btn btn-outline btn-sm" onclick="saveTemplateDlg()">💾 Save as Template</button>
+        </div>
+
+        <!-- Template selector -->
+        <div class="mb-3" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+          <span class="text-sm text-muted" style="white-space:nowrap">Insert preset:</span>
+          <div id="template-btns" style="display:flex;gap:0.4rem;flex-wrap:wrap"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Procedure Notes</label>
+          <textarea id="procedure_notes" rows="12" placeholder="Record surgical procedure steps, findings, and notes…" style="font-family:monospace;font-size:0.88rem"></textarea>
+        </div>
+      </div>
+
+      <!-- Sample Collection + Postop Medications (moved from Recovery) -->
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">🧪 Samples & Postop Medications</h2></div>
+        <div class="form-grid form-grid-2">
+          <div class="form-group span-full"><label>Sample Collection</label>
+            <textarea id="sample_collection" rows="2" placeholder="Samples collected (blood, tissue, biopsy, etc.)…"></textarea></div>
+          <div class="form-group span-full"><label>Postoperative Medications</label>
+            <textarea id="postop_medications" rows="3" placeholder="Discharge or postop medications, doses, frequency…"></textarea></div>
+        </div>
+      </div>
+
+      <!-- Image Gallery -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">📷 Procedure Images</h2>
+          <div class="flex gap-2">
+            <label class="btn btn-primary btn-sm" style="cursor:pointer;margin:0">
+              📁 Upload
+              <input type="file" id="img-upload-input" accept="image/*" multiple style="display:none" onchange="uploadImages(this)">
+            </label>
+            <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0">
+              📸 Camera
+              <input type="file" id="img-camera-input" accept="image/*" capture="environment" style="display:none" onchange="uploadImages(this)">
+            </label>
+          </div>
+        </div>
+        <p class="text-sm text-muted mb-2">Upload from files, camera, or iPhone photo library. Check ✓ to include image in export.</p>
+        <div id="image-gallery" style="display:flex;flex-wrap:wrap;gap:0.75rem"></div>
+        <div id="image-gallery-empty" class="text-muted text-sm" style="padding:0.5rem">No images yet.</div>
+      </div>
+
+      <!-- Save template dialog (hidden) -->
+      <div id="save-template-dlg" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center">
+        <div style="background:var(--bg-card);border-radius:0.75rem;padding:1.5rem;width:360px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+          <h3 style="margin:0 0 1rem">💾 Save as Template</h3>
+          <div class="form-group"><label>Template Name</label><input type="text" id="tpl-name-input" placeholder="e.g. My Castration technique"></div>
+          <div class="flex gap-2 mt-3">
+            <button class="btn btn-primary" onclick="confirmSaveTemplate()">Save</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('save-template-dlg').classList.add('hidden')">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── TAB: Recovery ───────────────────────────────────── -->
     <div class="tab-panel" id="panel-recovery">
       <div class="card">
@@ -733,10 +858,6 @@
             <textarea id="recovery_complications" rows="2" placeholder="Any complications during recovery…"></textarea></div>
           <div class="form-group span-full"><label>Postoperative Pain Management</label>
             <textarea id="postop_pain_management" rows="2" placeholder="Pain management drugs and plan…"></textarea></div>
-          <div class="form-group span-full"><label>Sample Collection</label>
-            <textarea id="sample_collection" rows="2" placeholder="Samples collected (blood, tissue, etc.)…"></textarea></div>
-          <div class="form-group span-full"><label>Postoperative Medications</label>
-            <textarea id="postop_medications" rows="2" placeholder="Discharge or postop medications…"></textarea></div>
           <div class="form-group span-full"><label>Postoperative Monitoring Plan</label>
             <textarea id="postop_monitoring" rows="2" placeholder="Monitoring instructions for recovery ward…"></textarea></div>
           <div class="form-group span-full"><label>Final Anesthetic Note</label>
@@ -820,7 +941,7 @@ function applyDrugPreset(input) {
 }
 
 // ── Tab switching ──────────────────────────────────────────
-const TAB_IDS = ["pre","premed","induction","local","equipment","monitoring","fluids","recovery"];
+const TAB_IDS = ["pre","premed","induction","local","equipment","monitoring","fluids","procedure","recovery"];
 function switchTab(id) {
   TAB_IDS.forEach(t => {
     document.getElementById(`panel-${t}`).classList.toggle("active", t === id);
@@ -873,6 +994,15 @@ async function loadRecord() {
     }
 
     document.getElementById("save-status").textContent = "Loaded";
+
+    // Load OR booking if exists
+    if (record.or_booking) populateBooking(record.or_booking);
+
+    // Load procedure images
+    renderImageGallery(record.procedure_images || []);
+
+    // Load procedure templates
+    loadTemplates();
   } catch (err) { toast("Failed to load record: " + err.message, "error"); }
 }
 
@@ -882,9 +1012,14 @@ function populateBanner() {
   document.getElementById("banner-signalment").textContent =
     [patient.species, patient.breed, patient.sex, patient.age ? patient.age + " old" : "", patient.weight ? patient.weight + "kg" : ""].filter(Boolean).join(" · ");
   const statusEl = document.getElementById("banner-status");
-  statusEl.textContent = record.status;
-  statusEl.className = `badge badge-${record.status || "draft"}`;
-  document.getElementById("status-select").value = record.status || "draft";
+  const st = record.status || "waiting";
+  statusEl.textContent = st;
+  const stClass = { waiting: "badge-draft", ongoing: "badge-ongoing", complete: "badge-completed" };
+  statusEl.className = `badge ${stClass[st] || "badge-draft"}`;
+  const sel = document.getElementById("status-select");
+  // Map old statuses to new
+  const stMap = { draft: "waiting", completed: "complete", exported: "complete" };
+  sel.value = stMap[st] || st;
   document.title = `${patient.hn} — ${patient.name} | Vet Anesthesia`;
 }
 
@@ -895,8 +1030,9 @@ const RECORD_FIELDS = [
   "surgeon","anesthesiologist","assistant","o2_flow_rate","anesthetic_machine",
   "breathing_system","vaporizer_gas","airway_device","ett_size","intubation_note",
   "induction_complication","premed_quality","induction_quality",
+  "procedure_notes","sample_collection","postop_medications",
   "recovery_quality","recovery_complications","postop_pain_management",
-  "sample_collection","postop_medications","postop_monitoring","final_note",
+  "postop_monitoring","final_note",
 ];
 const DATETIME_FIELDS = ["anesthesia_start","anesthesia_end","surgery_start","surgery_end",
                           "extubation_time","sternal_time","standing_time"];
@@ -1106,15 +1242,32 @@ function recalcDrugRow(row) {
   const dose = parseFloat(row.querySelector("[name='dose']")?.value) || 0;
   const unit = row.querySelector("[name='dose_unit']")?.value || "mg/kg";
   const conc = parseFloat(row.querySelector("[name='concentration']")?.value) || 0;
-
-  let totalDose = 0;
-  if (unit === "mL" || unit === "total") { totalDose = dose; }
-  else if (weight && dose) { totalDose = weight * dose; }
-
-  const volume = (conc && totalDose) ? totalDose / conc : 0;
-
   const volEl = row.querySelector("[name='calculated_volume']");
-  if (volEl && volume) {
+
+  if (!dose) return;
+
+  // If dose unit is already mL, it IS the volume
+  if (unit === "mL") {
+    if (volEl) volEl.value = dose.toFixed(3);
+    return;
+  }
+
+  // Calculate total dose in mg
+  let totalDoseMg = 0;
+  if (unit === "total") {
+    totalDoseMg = dose;                   // dose is mg total
+  } else if (unit === "mg/kg" && weight) {
+    totalDoseMg = weight * dose;          // mg/kg × kg = mg
+  } else if (unit === "mcg/kg" && weight) {
+    totalDoseMg = weight * dose / 1000;   // mcg/kg × kg ÷ 1000 = mg
+  } else if (unit === "U/kg" && weight) {
+    totalDoseMg = weight * dose;          // units — volume only calculable if conc in U/mL
+  }
+
+  if (!totalDoseMg || !conc) return;
+  const volume = totalDoseMg / conc;      // mg ÷ mg/mL = mL
+
+  if (volEl) {
     volEl.value = volume.toFixed(3);
     if (volume > 50) toast(`⚠ Volume ${volume.toFixed(1)} mL seems high — please verify`, "warning");
   }
@@ -1795,6 +1948,223 @@ function quickAlert(label, mins) {
     }
   }, 500);
   toast(`⏰ Alert set: "${label}" in ${mins} min`, "info");
+}
+
+// ── OR Booking ─────────────────────────────────────────────
+function populateBooking(b) {
+  if (!b) return;
+  if (b.surgery_date) document.getElementById("booking-date").value = b.surgery_date;
+  document.getElementById("booking-or").value = b.or_number || 1;
+  document.getElementById("booking-slot-start").value = b.slot_start || 13;
+  document.getElementById("booking-num-slots").value = b.num_slots || 1;
+  document.getElementById("cancel-booking-btn").style.display = "inline-flex";
+  const badge = document.getElementById("booking-status-badge");
+  const slotEnd = (b.slot_start || 13) + (b.num_slots || 1);
+  badge.textContent = `OR ${b.or_number} · ${String(b.slot_start).padStart(2,"0")}:00–${String(slotEnd).padStart(2,"0")}:00`;
+  badge.style.display = "inline-block";
+}
+
+async function saveBooking() {
+  const surgery_date = document.getElementById("booking-date").value;
+  const or_number = parseInt(document.getElementById("booking-or").value);
+  const slot_start = parseInt(document.getElementById("booking-slot-start").value);
+  const num_slots = parseInt(document.getElementById("booking-num-slots").value);
+  if (!surgery_date) { toast("Please select a surgery date", "warning"); return; }
+  try {
+    const saved = await API.upsertBooking(recordId, { surgery_date, or_number, slot_start, num_slots });
+    populateBooking(saved);
+    toast("OR booking saved", "success");
+    checkORAvailability();
+    // Reload record to get updated surgery_start
+    const full = await API.getRecord(recordId);
+    record = full;
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function cancelBooking() {
+  if (!confirm("Remove OR booking?")) return;
+  try {
+    await API.deleteBooking(recordId);
+    document.getElementById("booking-date").value = "";
+    document.getElementById("cancel-booking-btn").style.display = "none";
+    document.getElementById("booking-status-badge").style.display = "none";
+    document.getElementById("booking-warning").style.display = "none";
+    document.getElementById("booking-day-schedule").style.display = "none";
+    toast("Booking removed", "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function checkORAvailability() {
+  const surgery_date = document.getElementById("booking-date").value;
+  const or_number = document.getElementById("booking-or").value;
+  if (!surgery_date) return;
+  try {
+    const info = await API.checkSchedule({ surgery_date, or_number, exclude_record_id: recordId });
+    const warnEl = document.getElementById("booking-warning");
+    if (info.warning) {
+      warnEl.textContent = `⚠ ${info.message}`;
+      warnEl.style.display = "block";
+    } else {
+      warnEl.style.display = "none";
+    }
+    // Show same-day bookings
+    const bookings = await API.listBookings({ surgery_date });
+    const others = bookings.filter(b => b.record_id !== recordId && b.or_number == or_number);
+    const dayDiv = document.getElementById("booking-day-schedule");
+    const dayList = document.getElementById("booking-day-list");
+    if (others.length) {
+      dayList.innerHTML = others.map(b => `
+        <span style="background:var(--bg-secondary);border-radius:0.3rem;padding:0.2rem 0.5rem;font-size:0.78rem;border:1px solid var(--border)">
+          ${b.time_range} · ${b.hn} ${b.patient_name} (${b.status})
+        </span>`).join("");
+      dayDiv.style.display = "block";
+    } else {
+      dayDiv.style.display = "none";
+    }
+  } catch {}
+}
+
+// ── Procedure Templates ────────────────────────────────────
+async function loadTemplates() {
+  try {
+    const templates = await API.listTemplates();
+    const container = document.getElementById("template-btns");
+    if (!container) return;
+    container.innerHTML = templates.map(t => `
+      <span style="display:inline-flex;align-items:center;gap:0.2rem">
+        <button class="btn btn-outline btn-sm" onclick="insertTemplate(${t.id})" style="font-size:0.78rem">${t.name}</button>
+        ${!t.is_system ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="deleteTemplate(${t.id})" title="Delete" style="font-size:0.65rem;padding:0 0.2rem">✕</button>` : ""}
+      </span>`).join("");
+    // Cache for insert
+    window._templates = templates;
+  } catch {}
+}
+
+function insertTemplate(id) {
+  const tpl = (window._templates || []).find(t => t.id === id);
+  if (!tpl) return;
+  const ta = document.getElementById("procedure_notes");
+  if (!ta) return;
+  const sep = ta.value ? "\n\n" : "";
+  ta.value = ta.value + sep + tpl.content;
+  ta.focus();
+  scheduleSave();
+  toast(`Template "${tpl.name}" inserted`, "success");
+}
+
+function saveTemplateDlg() {
+  const notes = document.getElementById("procedure_notes")?.value || "";
+  if (!notes.trim()) { toast("Add procedure notes first", "warning"); return; }
+  document.getElementById("save-template-dlg").classList.remove("hidden");
+  document.getElementById("tpl-name-input").focus();
+}
+
+async function confirmSaveTemplate() {
+  const name = document.getElementById("tpl-name-input").value.trim();
+  if (!name) { toast("Please enter a template name", "warning"); return; }
+  const content = document.getElementById("procedure_notes")?.value || "";
+  try {
+    await API.createTemplate({ name, content });
+    document.getElementById("save-template-dlg").classList.add("hidden");
+    document.getElementById("tpl-name-input").value = "";
+    toast(`Template "${name}" saved`, "success");
+    loadTemplates();
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function deleteTemplate(id) {
+  if (!confirm("Delete this template?")) return;
+  try {
+    await API.deleteTemplate(id);
+    toast("Template deleted", "success");
+    loadTemplates();
+  } catch (err) { toast(err.message, "error"); }
+}
+
+// ── Procedure Images ───────────────────────────────────────
+async function uploadImages(input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  for (const file of files) {
+    try {
+      const img = await API.uploadImage(recordId, file);
+      appendImageCard(img);
+      document.getElementById("image-gallery-empty").style.display = "none";
+    } catch (err) { toast("Upload failed: " + err.message, "error"); }
+  }
+  input.value = "";
+  toast("Image(s) uploaded", "success");
+}
+
+function renderImageGallery(images) {
+  const gallery = document.getElementById("image-gallery");
+  const empty = document.getElementById("image-gallery-empty");
+  if (!gallery) return;
+  gallery.innerHTML = "";
+  if (!images.length) { empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  images.forEach(img => appendImageCard(img));
+}
+
+function appendImageCard(img) {
+  const gallery = document.getElementById("image-gallery");
+  const empty = document.getElementById("image-gallery-empty");
+  if (!gallery) return;
+  empty.style.display = "none";
+  const div = document.createElement("div");
+  div.id = `imgcard-${img.id}`;
+  div.style.cssText = "position:relative;width:160px;border-radius:0.5rem;overflow:hidden;border:2px solid var(--border);background:var(--bg-secondary)";
+  div.innerHTML = `
+    <img src="${API.imageUrl(recordId, img.filename)}" alt="${img.original_name || ''}"
+         style="width:100%;height:120px;object-fit:cover;display:block;cursor:pointer"
+         onclick="viewImage('${API.imageUrl(recordId, img.filename)}')">
+    <div style="padding:0.4rem">
+      <input type="text" placeholder="Label…" value="${img.label || ''}"
+             style="width:100%;font-size:0.75rem;border:1px solid var(--border);border-radius:0.25rem;padding:0.2rem 0.3rem;background:var(--bg-card)"
+             onchange="updateImageLabel(${img.id}, this.value)">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.3rem;font-size:0.75rem">
+        <label style="display:flex;align-items:center;gap:0.25rem;cursor:pointer;margin:0">
+          <input type="checkbox" ${img.for_export ? "checked" : ""} onchange="updateImageExport(${img.id}, this.checked)">
+          Export
+        </label>
+        <button class="btn btn-ghost btn-sm btn-icon" style="margin-left:auto;font-size:0.7rem" onclick="deleteImageCard(${img.id})">🗑</button>
+      </div>
+    </div>`;
+  gallery.appendChild(div);
+}
+
+async function updateImageLabel(imgId, label) {
+  try { await API.updateImage(recordId, imgId, { label }); }
+  catch (err) { toast(err.message, "error"); }
+}
+
+async function updateImageExport(imgId, for_export) {
+  try { await API.updateImage(recordId, imgId, { for_export }); }
+  catch (err) { toast(err.message, "error"); }
+}
+
+async function deleteImageCard(imgId) {
+  if (!confirm("Delete this image?")) return;
+  try {
+    await API.deleteImage(recordId, imgId);
+    const card = document.getElementById(`imgcard-${imgId}`);
+    if (card) card.remove();
+    if (!document.getElementById("image-gallery")?.children.length) {
+      document.getElementById("image-gallery-empty").style.display = "block";
+    }
+    toast("Image deleted", "success");
+  } catch (err) { toast(err.message, "error"); }
+}
+
+function viewImage(url) {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out";
+  overlay.onclick = () => overlay.remove();
+  const img = document.createElement("img");
+  img.src = url;
+  img.style.cssText = "max-width:95vw;max-height:95vh;border-radius:0.5rem;box-shadow:0 8px 40px rgba(0,0,0,.5)";
+  overlay.appendChild(img);
+  document.body.appendChild(overlay);
 }
 
 // ── Edit patient ───────────────────────────────────────────

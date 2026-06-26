@@ -185,10 +185,49 @@ class SurgicalProcedureOut(SurgicalProcedureCreate):
     created_at: datetime
 
 
+class ORBookingCreate(BaseModel):
+    surgery_date: Optional[date] = None
+    or_number: int = 1
+    slot_start: int = 13
+    num_slots: int = 1
+    sort_order: int = 0
+
+
+class ORBookingOut(ORBookingCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    record_id: int
+    created_at: datetime
+
+
+class ProcedureTemplateCreate(BaseModel):
+    name: str
+    content: str
+    is_system: bool = False
+
+
+class ProcedureTemplateOut(ProcedureTemplateCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: datetime
+
+
+class ProcedureImageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    record_id: int
+    filename: str
+    original_name: Optional[str]
+    label: Optional[str]
+    for_export: bool
+    sort_order: int
+    created_at: datetime
+
+
 class RecordCreate(BaseModel):
     patient_id: int
     record_date: Optional[date] = None
-    status: str = "draft"
+    status: str = "waiting"
     asa_status: Optional[str] = None
     weight_at_record: Optional[float] = None
     pcv: Optional[float] = None
@@ -227,11 +266,12 @@ class RecordCreate(BaseModel):
     extubation_time: Optional[datetime] = None
     sternal_time: Optional[datetime] = None
     standing_time: Optional[datetime] = None
+    procedure_notes: Optional[str] = None
+    sample_collection: Optional[str] = None
+    postop_medications: Optional[str] = None
     recovery_quality: Optional[str] = None
     recovery_complications: Optional[str] = None
     postop_pain_management: Optional[str] = None
-    sample_collection: Optional[str] = None
-    postop_medications: Optional[str] = None
     postop_monitoring: Optional[str] = None
     final_note: Optional[str] = None
 
@@ -284,11 +324,12 @@ class RecordOut(BaseModel):
     extubation_time: Optional[datetime]
     sternal_time: Optional[datetime]
     standing_time: Optional[datetime]
+    procedure_notes: Optional[str]
+    sample_collection: Optional[str]
+    postop_medications: Optional[str]
     recovery_quality: Optional[str]
     recovery_complications: Optional[str]
     postop_pain_management: Optional[str]
-    sample_collection: Optional[str]
-    postop_medications: Optional[str]
     postop_monitoring: Optional[str]
     final_note: Optional[str]
     created_at: datetime
@@ -298,3 +339,5 @@ class RecordOut(BaseModel):
     fluid_entries: List[FluidEntryOut] = []
     emergency_events: List[EmergencyEventOut] = []
     surgical_procedures: List[SurgicalProcedureOut] = []
+    or_booking: Optional[ORBookingOut] = None
+    procedure_images: List[ProcedureImageOut] = []

@@ -54,6 +54,43 @@
       </div>
     </div>
 
+    <!-- Surgery Schedule -->
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:1rem;margin-bottom:1rem;align-items:start">
+
+      <!-- Mini Calendar -->
+      <div class="card" style="min-width:230px;padding:0.75rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="calNav(-1)">‹</button>
+          <strong id="cal-title" style="font-size:0.9rem"></strong>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="calNav(1)">›</button>
+        </div>
+        <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:0.78rem"></div>
+        <button class="btn btn-ghost btn-sm" onclick="calGoToday()" style="width:100%;margin-top:0.5rem;font-size:0.75rem">Today</button>
+      </div>
+
+      <!-- Day Schedule -->
+      <div class="card" style="min-height:200px">
+        <div class="card-header" style="padding-bottom:0.5rem">
+          <h2 class="card-title" style="font-size:1rem">🏥 OR Schedule — <span id="sched-date-title"></span></h2>
+          <div style="display:flex;gap:0.5rem">
+            <button class="btn btn-outline btn-sm" onclick="loadSchedule()" title="Refresh">🔄</button>
+            <select id="sched-or-filter" onchange="renderSchedule()" style="font-size:0.8rem;padding:0.2rem 0.4rem">
+              <option value="">All ORs</option>
+              <option value="1">OR 1</option>
+              <option value="2">OR 2</option>
+            </select>
+          </div>
+        </div>
+        <div id="sched-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem" id="sched-grid">
+            <div><div class="text-sm text-muted mb-1" style="font-weight:600">OR 1</div><div id="sched-or1"></div></div>
+            <div><div class="text-sm text-muted mb-1" style="font-weight:600">OR 2</div><div id="sched-or2"></div></div>
+          </div>
+          <div id="sched-empty" class="text-muted text-sm" style="display:none;padding:0.5rem">No surgeries scheduled for this date.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Toolbar -->
     <div class="card">
       <div class="card-header">
@@ -62,14 +99,14 @@
       </div>
 
       <div class="flex gap-2 mb-3" style="flex-wrap:wrap">
-        <input type="search" id="search-input" placeholder="Search HN, name, species, surgeon…"
-               style="max-width:320px; flex:1" oninput="debounceSearch()">
+        <input type="text" id="search-input" placeholder="Search HN, name, species, surgeon…"
+               style="max-width:320px; flex:1" oninput="debounceSearch()"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         <select id="status-filter" onchange="loadRecords()" style="width:140px">
           <option value="">All Status</option>
-          <option value="draft">Draft</option>
+          <option value="waiting">Waiting</option>
           <option value="ongoing">Ongoing</option>
-          <option value="completed">Completed</option>
-          <option value="exported">Exported</option>
+          <option value="complete">Complete</option>
         </select>
         <button class="btn btn-outline btn-sm" onclick="loadRecords()">🔄 Refresh</button>
       </div>
@@ -200,8 +237,125 @@ let searchTimer;
 function debounceSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(loadRecords, 400); }
 
 function statusBadge(s) {
-  const map = { draft: "badge-draft", ongoing: "badge-ongoing", completed: "badge-completed", exported: "badge-exported" };
-  return `<span class="badge ${map[s] || "badge-draft"}">${s || "draft"}</span>`;
+  const map = { waiting: "badge-draft", ongoing: "badge-ongoing", complete: "badge-completed",
+                draft: "badge-draft", completed: "badge-completed", exported: "badge-completed" };
+  const label = { waiting: "Waiting", ongoing: "Ongoing", complete: "Complete",
+                  draft: "Waiting", completed: "Complete", exported: "Complete" };
+  return `<span class="badge ${map[s] || "badge-draft"}">${label[s] || s || "Waiting"}</span>`;
+}
+
+// ── Mini Calendar ──────────────────────────────────────────
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let calSelected = new Date().toISOString().slice(0,10);
+
+function calNav(dir) { calMonth += dir; if (calMonth > 11) { calMonth = 0; calYear++; } else if (calMonth < 0) { calMonth = 11; calYear--; } renderCal(); }
+function calGoToday() { const t = new Date(); calYear = t.getFullYear(); calMonth = t.getMonth(); calSelected = t.toISOString().slice(0,10); renderCal(); loadSchedule(); }
+
+function renderCal() {
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById("cal-title").textContent = `${months[calMonth]} ${calYear}`;
+  const grid = document.getElementById("cal-grid");
+  const today = new Date().toISOString().slice(0,10);
+  const days = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+  let html = days.map(d => `<div style="font-weight:600;color:var(--text-muted);padding:2px">${d}</div>`).join("");
+  const first = new Date(calYear, calMonth, 1).getDay();
+  const last = new Date(calYear, calMonth+1, 0).getDate();
+  for (let i = 0; i < first; i++) html += `<div></div>`;
+  for (let d = 1; d <= last; d++) {
+    const iso = `${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const isToday = iso === today;
+    const isSel = iso === calSelected;
+    html += `<div onclick="calSelect('${iso}')" style="padding:3px;border-radius:50%;cursor:pointer;
+      background:${isSel ? "var(--primary)" : "transparent"};
+      color:${isSel ? "#fff" : isToday ? "var(--primary)" : "inherit"};
+      font-weight:${isToday ? "700" : "400"};
+      outline:${isToday && !isSel ? "1px solid var(--primary)" : "none"}">${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function calSelect(iso) { calSelected = iso; renderCal(); loadSchedule(); }
+
+// ── Day Schedule ───────────────────────────────────────────
+let _scheduleData = [];
+
+async function loadSchedule() {
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const [y,m,d] = calSelected.split("-").map(Number);
+  document.getElementById("sched-date-title").textContent = `${d} ${months[m-1]} ${y}`;
+  try {
+    _scheduleData = await API.listBookings({ surgery_date: calSelected });
+    renderSchedule();
+  } catch (e) { console.error(e); }
+}
+
+function renderSchedule() {
+  const orFilter = document.getElementById("sched-or-filter").value;
+  const or1 = document.getElementById("sched-or1");
+  const or2 = document.getElementById("sched-or2");
+  const empty = document.getElementById("sched-empty");
+  if (!or1 || !or2) return;
+
+  const filtered = orFilter ? _scheduleData.filter(b => String(b.or_number) === orFilter) : _scheduleData;
+  const data1 = _scheduleData.filter(b => b.or_number === 1);
+  const data2 = _scheduleData.filter(b => b.or_number === 2);
+
+  or1.innerHTML = data1.length ? data1.map(b => schedCard(b)).join("") : '<div class="text-muted text-sm" style="padding:0.4rem">—</div>';
+  or2.innerHTML = data2.length ? data2.map(b => schedCard(b)).join("").replace(/ondragover/g, "ondragover") : '<div class="text-muted text-sm" style="padding:0.4rem">—</div>';
+
+  empty.style.display = filtered.length ? "none" : "block";
+
+  // Wire drag-and-drop on slot containers
+  [or1, or2].forEach((container, idx) => {
+    container.setAttribute("data-or", idx + 1);
+    container.ondragover = e => { e.preventDefault(); container.style.outline = "2px dashed var(--primary)"; };
+    container.ondragleave = () => { container.style.outline = ""; };
+    container.ondrop = e => {
+      e.preventDefault();
+      container.style.outline = "";
+      const bookingId = parseInt(e.dataTransfer.getData("bookingId"));
+      const newOr = idx + 1;
+      const promptHour = parseInt(prompt(`Move to which start hour? (8–19)`, "13"));
+      if (!promptHour || promptHour < 8 || promptHour > 19) return;
+      moveBooking(bookingId, newOr, promptHour);
+    };
+  });
+}
+
+function schedCard(b) {
+  const statusColor = { waiting: "#6b7280", ongoing: "#d97706", complete: "#059669",
+                        draft: "#6b7280", completed: "#059669", exported: "#059669" };
+  const col = statusColor[b.status] || "#6b7280";
+  return `<div draggable="true" id="scard-${b.id}"
+    ondragstart="event.dataTransfer.setData('bookingId','${b.id}')"
+    style="border-left:3px solid ${col};background:var(--bg-secondary);border-radius:0.4rem;
+           padding:0.5rem 0.6rem;margin-bottom:0.4rem;cursor:grab;font-size:0.82rem">
+    <div style="font-weight:700;color:var(--primary)">${b.time_range}</div>
+    <div><strong>${b.hn}</strong> · ${b.patient_name}</div>
+    <div class="text-muted">${b.surgical_procedure || "—"}</div>
+    <div style="display:flex;justify-content:space-between;margin-top:0.25rem">
+      <span class="text-muted">${b.surgeon || "—"}</span>
+      <span style="color:${col};font-weight:600;font-size:0.75rem">${b.status}</span>
+    </div>
+    <a href="/record?id=${b.record_id}" class="btn btn-outline btn-sm" style="margin-top:0.3rem;font-size:0.72rem;padding:0.15rem 0.5rem">Open</a>
+  </div>`;
+}
+
+async function moveBooking(bookingId, newOr, newSlotStart) {
+  try {
+    // Find the booking
+    const b = _scheduleData.find(x => x.id === bookingId);
+    if (!b) return;
+    await API.upsertBooking(b.record_id, {
+      surgery_date: calSelected,
+      or_number: newOr,
+      slot_start: newSlotStart,
+      num_slots: b.num_slots || 1,
+    });
+    toast("Schedule updated", "success");
+    loadSchedule();
+  } catch (err) { toast(err.message, "error"); }
 }
 
 async function loadRecords() {
@@ -327,6 +481,8 @@ async function deleteUser(id, username) {
 }
 
 loadRecords();
+renderCal();
+loadSchedule();
 
 // ── Backup & Restore ──────────────────────────────────────
 async function loadBackupInfo() {
