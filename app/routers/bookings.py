@@ -462,8 +462,9 @@ async def create_duty(
     if not surgeon_name:
         raise HTTPException(status_code=400, detail="surgeon_name required")
 
-    repeat_weeks = int(data.get("repeat_weeks") or 0)
-    group_id = str(uuid.uuid4()) if repeat_weeks > 0 else None
+    repeat_count = int(data.get("repeat_count") or 0)
+    repeat_interval_days = max(1, int(data.get("repeat_interval_days") or 7))
+    group_id = str(uuid.uuid4()) if repeat_count > 0 else None
 
     duty = models.SurgeonDuty(
         duty_date=duty_date,
@@ -478,9 +479,9 @@ async def create_duty(
     db.add(duty)
 
     created_count = 1
-    if repeat_weeks > 0:
-        for week_num in range(1, repeat_weeks + 1):
-            next_date = duty_date + timedelta(weeks=week_num)
+    if repeat_count > 0:
+        for i in range(1, repeat_count + 1):
+            next_date = duty_date + timedelta(days=repeat_interval_days * i)
             exists = db.query(models.SurgeonDuty).filter(
                 models.SurgeonDuty.duty_date == next_date,
                 models.SurgeonDuty.surgeon_name == surgeon_name,
