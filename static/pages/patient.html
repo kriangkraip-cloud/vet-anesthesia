@@ -252,7 +252,7 @@ async function createNewRecord(patientId) {
     const record = await API.createRecord({
       patient_id: parseInt(patientId),
       record_date: new Date().toISOString().slice(0, 10),
-      status: "draft",
+      status: "waiting",
       surgeon: document.getElementById("surgeon").value || "",
       anesthesiologist: document.getElementById("anesthesiologist").value || "",
       assistant: document.getElementById("assistant").value || "",
@@ -301,7 +301,7 @@ async function savePatient() {
         const record = await API.createRecord({
           patient_id: patient.id,
           record_date: document.getElementById("record_date").value || new Date().toISOString().slice(0, 10),
-          status: "draft",
+          status: "waiting",
           surgeon: document.getElementById("surgeon").value || "",
           anesthesiologist: document.getElementById("anesthesiologist").value || "",
           assistant: document.getElementById("assistant").value || "",

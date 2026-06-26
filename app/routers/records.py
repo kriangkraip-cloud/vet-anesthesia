@@ -67,7 +67,14 @@ async def get_record(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    record = (
+    record = _load_full_record(db, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    return record
+
+
+def _load_full_record(db: Session, record_id: int):
+    return (
         db.query(models.AnestheticRecord)
         .options(
             joinedload(models.AnestheticRecord.drug_entries),
@@ -81,9 +88,6 @@ async def get_record(
         .filter(models.AnestheticRecord.id == record_id)
         .first()
     )
-    if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
-    return record
 
 
 @router.post("", response_model=schemas.RecordOut)
@@ -104,8 +108,7 @@ async def create_record(
     )
     db.add(record)
     db.commit()
-    db.refresh(record)
-    return record
+    return _load_full_record(db, record.id)
 
 
 @router.put("/{record_id}", response_model=schemas.RecordOut)
@@ -123,8 +126,7 @@ async def update_record(
     record.updated_by_id = current_user.id
     record.updated_at = datetime.utcnow()
     db.commit()
-    db.refresh(record)
-    return record
+    return _load_full_record(db, record_id)
 
 
 @router.delete("/{record_id}")
