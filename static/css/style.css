@@ -361,6 +361,7 @@ tbody td { padding: 0.6rem 0.75rem; vertical-align: middle; }
 }
 
 .badge-draft     { background: #e8edf2; color: #5a6a7a; }
+.badge-waiting   { background: #dbeafe; color: #1d4ed8; }
 .badge-ongoing   { background: #fff3cd; color: #856404; }
 .badge-completed { background: #d1f0ea; color: #1a6b5c; }
 .badge-exported  { background: #dbeafe; color: #1d4ed8; }

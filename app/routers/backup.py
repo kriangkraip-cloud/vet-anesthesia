@@ -55,6 +55,34 @@ async def restore_backup(
     # Dispose SQLAlchemy engine so new connections pick up the restored file
     engine.dispose()
 
+    # Run schema migrations and status fixes on the restored DB so old backups
+    # get any columns added after the backup was created
+    try:
+        from sqlalchemy import text
+        from ..database import SessionLocal
+        mig_db = SessionLocal()
+        migrations = [
+            "ALTER TABLE monitoring_entries ADD COLUMN fluid_rate FLOAT",
+            "ALTER TABLE anesthetic_records ADD COLUMN procedure_notes TEXT",
+            "ALTER TABLE anesthetic_records ADD COLUMN sample_collection TEXT",
+            "ALTER TABLE anesthetic_records ADD COLUMN postop_medications TEXT",
+        ]
+        for sql in migrations:
+            try:
+                mig_db.execute(text(sql))
+                mig_db.commit()
+            except Exception:
+                mig_db.rollback()
+        try:
+            mig_db.execute(text("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'"))
+            mig_db.execute(text("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')"))
+            mig_db.commit()
+        except Exception:
+            mig_db.rollback()
+        mig_db.close()
+    except Exception:
+        pass
+
     return JSONResponse({"message": "Database restored successfully. Refresh the page to see updated data."})
 
 

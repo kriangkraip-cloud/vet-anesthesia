@@ -34,19 +34,19 @@
 
   <!-- Main -->
   <main class="main-content">
-    <!-- Stats -->
+    <!-- Stats (today's records only) -->
     <div class="stat-cards" id="stat-cards">
       <div class="stat-card">
-        <div class="stat-icon" style="background:#dbeafe">📋</div>
-        <div><div class="stat-value" id="stat-total">—</div><div class="stat-label">Total Records</div></div>
+        <div class="stat-icon" style="background:#dbeafe">⏱</div>
+        <div><div class="stat-value" id="stat-total">—</div><div class="stat-label">Waiting <span style="font-size:0.7rem;opacity:0.6">(today)</span></div></div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:#fef9c3">⏳</div>
-        <div><div class="stat-value" id="stat-ongoing">—</div><div class="stat-label">Ongoing</div></div>
+        <div class="stat-icon" style="background:#fef9c3">▶</div>
+        <div><div class="stat-value" id="stat-ongoing">—</div><div class="stat-label">Ongoing <span style="font-size:0.7rem;opacity:0.6">(today)</span></div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon" style="background:#d1f0ea">✓</div>
-        <div><div class="stat-value" id="stat-completed">—</div><div class="stat-label">Completed</div></div>
+        <div><div class="stat-value" id="stat-completed">—</div><div class="stat-label">Complete <span style="font-size:0.7rem;opacity:0.6">(today)</span></div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon" style="background:#f0fdf4">🐾</div>
@@ -112,7 +112,7 @@
       </div>
 
       <!-- Desktop table -->
-      <div class="table-wrap table-mobile-cards" id="records-table-wrap">
+      <div class="table-wrap table-mobile-cards" id="records-table-wrap" style="max-height:420px;overflow-y:auto">
         <table id="records-table">
           <thead>
             <tr>
@@ -237,11 +237,11 @@ let searchTimer;
 function debounceSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(loadRecords, 400); }
 
 function statusBadge(s) {
-  const map = { waiting: "badge-draft", ongoing: "badge-ongoing", complete: "badge-completed",
-                draft: "badge-draft", completed: "badge-completed", exported: "badge-completed" };
+  const map = { waiting: "badge-waiting", ongoing: "badge-ongoing", complete: "badge-completed",
+                draft: "badge-waiting", completed: "badge-completed", exported: "badge-completed" };
   const label = { waiting: "Waiting", ongoing: "Ongoing", complete: "Complete",
                   draft: "Waiting", completed: "Complete", exported: "Complete" };
-  return `<span class="badge ${map[s] || "badge-draft"}">${label[s] || s || "Waiting"}</span>`;
+  return `<span class="badge ${map[s] || "badge-waiting"}">${label[s] || s || "Waiting"}</span>`;
 }
 
 // ── Mini Calendar ──────────────────────────────────────────
@@ -359,33 +359,45 @@ async function moveBooking(bookingId, newOr, newSlotStart) {
 }
 
 async function loadRecords() {
-  const q = document.getElementById("search-input").value.trim();
-  const status = document.getElementById("status-filter").value;
-  const params = {};
-  if (q) params.q = q;
-  if (status) params.status = status;
+  const q = document.getElementById("search-input").value.trim().toLowerCase();
+  const statusFilter = document.getElementById("status-filter").value;
+  const today = new Date().toISOString().slice(0, 10);
 
   try {
-    const records = await API.listRecords(params);
+    // Always load all records — stats are derived from today's subset, table from client filter
+    const records = await API.listRecords({});
     const tbody = document.getElementById("records-tbody");
 
-    // Update stats
-    document.getElementById("stat-total").textContent = records.length;
-    document.getElementById("stat-ongoing").textContent = records.filter(r => r.status === "ongoing").length;
-    document.getElementById("stat-completed").textContent = records.filter(r => r.status === "complete" || r.status === "completed" || r.status === "exported").length;
+    // Stats: today's records only
+    const todayRecs = records.filter(r => r.record_date === today);
+    document.getElementById("stat-total").textContent = todayRecs.filter(r => !r.status || r.status === "waiting" || r.status === "draft").length;
+    document.getElementById("stat-ongoing").textContent = todayRecs.filter(r => r.status === "ongoing").length;
+    document.getElementById("stat-completed").textContent = todayRecs.filter(r => r.status === "complete" || r.status === "completed" || r.status === "exported").length;
+    document.getElementById("stat-patients").textContent = new Set(records.map(r => r.patient_id)).size;
 
-    // Count unique patients
-    const uniquePats = new Set(records.map(r => r.patient_id)).size;
-    document.getElementById("stat-patients").textContent = uniquePats;
+    // Client-side filter for table display
+    let filtered = records;
+    if (q) {
+      filtered = filtered.filter(r =>
+        (r.hn || "").toLowerCase().includes(q) ||
+        (r.patient_name || "").toLowerCase().includes(q) ||
+        (r.species || "").toLowerCase().includes(q) ||
+        (r.surgeon || "").toLowerCase().includes(q) ||
+        (r.anesthesiologist || "").toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter) {
+      filtered = filtered.filter(r => r.status === statusFilter);
+    }
 
-    if (records.length === 0) {
+    if (filtered.length === 0) {
       tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted)">
         No records found. <a href="/patient?mode=new" style="color:var(--primary)">Register a new patient</a>
       </td></tr>`;
       return;
     }
 
-    tbody.innerHTML = records.map(r => `
+    tbody.innerHTML = filtered.map(r => `
       <tr>
         <td data-label="HN">
           <a href="/record?id=${r.id}" style="font-weight:700;color:var(--primary);text-decoration:none">${r.hn}</a>
