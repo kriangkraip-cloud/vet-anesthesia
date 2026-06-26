@@ -322,6 +322,20 @@ async def serve_image(
 
 # ── Surgeon Duty Schedule ────────────────────────────────────────────────────
 
+
+def _fmt_duty(d: models.SurgeonDuty) -> dict:
+    return {
+        "id": d.id,
+        "duty_date": d.duty_date.isoformat() if d.duty_date else None,
+        "surgeon_name": d.surgeon_name,
+        "duty_start": d.duty_start,
+        "duty_end": d.duty_end,
+        "duty_type": d.duty_type,
+        "notes": d.notes,
+        "repeat_group_id": d.repeat_group_id,
+    }
+
+
 @router.get("/duties")
 async def list_duties(
     start_date: Optional[str] = Query(None),
@@ -341,18 +355,7 @@ async def list_duties(
         except ValueError:
             pass
     duties = query.order_by(models.SurgeonDuty.duty_date, models.SurgeonDuty.duty_start).all()
-    return [
-        {
-            "id": d.id,
-            "duty_date": d.duty_date.isoformat() if d.duty_date else None,
-            "surgeon_name": d.surgeon_name,
-            "duty_start": d.duty_start,
-            "duty_end": d.duty_end,
-            "duty_type": d.duty_type,
-            "notes": d.notes,
-        }
-        for d in duties
-    ]
+    return [_fmt_duty(d) for d in duties]
 
 
 @router.post("/duties")
@@ -370,6 +373,10 @@ async def create_duty(
     surgeon_name = (data.get("surgeon_name") or "").strip()
     if not surgeon_name:
         raise HTTPException(status_code=400, detail="surgeon_name required")
+
+    repeat_weeks = int(data.get("repeat_weeks") or 0)
+    group_id = str(uuid.uuid4()) if repeat_weeks > 0 else None
+
     duty = models.SurgeonDuty(
         duty_date=duty_date,
         surgeon_name=surgeon_name,
@@ -377,20 +384,38 @@ async def create_duty(
         duty_end=data.get("duty_end") or None,
         duty_type=data.get("duty_type") or None,
         notes=data.get("notes") or None,
+        repeat_group_id=group_id,
         created_by_id=current_user.id,
     )
     db.add(duty)
+
+    created_count = 1
+    if repeat_weeks > 0:
+        for week_num in range(1, repeat_weeks + 1):
+            next_date = duty_date + timedelta(weeks=week_num)
+            exists = db.query(models.SurgeonDuty).filter(
+                models.SurgeonDuty.duty_date == next_date,
+                models.SurgeonDuty.surgeon_name == surgeon_name,
+            ).first()
+            if not exists:
+                repeated = models.SurgeonDuty(
+                    duty_date=next_date,
+                    surgeon_name=surgeon_name,
+                    duty_start=data.get("duty_start") or None,
+                    duty_end=data.get("duty_end") or None,
+                    duty_type=data.get("duty_type") or None,
+                    notes=data.get("notes") or None,
+                    repeat_group_id=group_id,
+                    created_by_id=current_user.id,
+                )
+                db.add(repeated)
+                created_count += 1
+
     db.commit()
     db.refresh(duty)
-    return {
-        "id": duty.id,
-        "duty_date": duty.duty_date.isoformat(),
-        "surgeon_name": duty.surgeon_name,
-        "duty_start": duty.duty_start,
-        "duty_end": duty.duty_end,
-        "duty_type": duty.duty_type,
-        "notes": duty.notes,
-    }
+    result = _fmt_duty(duty)
+    result["created_count"] = created_count
+    return result
 
 
 @router.put("/duties/{duty_id}")
@@ -405,31 +430,40 @@ async def update_duty(
     duty = db.query(models.SurgeonDuty).filter(models.SurgeonDuty.id == duty_id).first()
     if not duty:
         raise HTTPException(status_code=404, detail="Duty not found")
-    for field in ("surgeon_name", "duty_start", "duty_end", "duty_type", "notes"):
-        if field in data:
-            setattr(duty, field, data[field] or None)
-    if "duty_date" in data:
-        try:
-            duty.duty_date = date.fromisoformat(data["duty_date"])
-        except (ValueError, TypeError):
-            pass
-    duty.updated_at = datetime.utcnow()
+
+    edit_scope = data.get("edit_scope", "this")  # "this" | "future" | "all"
+
+    if edit_scope == "all" and duty.repeat_group_id:
+        duties_to_update = db.query(models.SurgeonDuty).filter(
+            models.SurgeonDuty.repeat_group_id == duty.repeat_group_id
+        ).all()
+    elif edit_scope == "future" and duty.repeat_group_id:
+        duties_to_update = db.query(models.SurgeonDuty).filter(
+            models.SurgeonDuty.repeat_group_id == duty.repeat_group_id,
+            models.SurgeonDuty.duty_date >= duty.duty_date,
+        ).all()
+    else:
+        duties_to_update = [duty]
+
+    for d in duties_to_update:
+        for field in ("surgeon_name", "duty_start", "duty_end", "duty_type", "notes"):
+            if field in data:
+                setattr(d, field, data[field] or None)
+        if edit_scope == "this" and "duty_date" in data:
+            try:
+                d.duty_date = date.fromisoformat(data["duty_date"])
+            except (ValueError, TypeError):
+                pass
+        d.updated_at = datetime.utcnow()
+
     db.commit()
-    db.refresh(duty)
-    return {
-        "id": duty.id,
-        "duty_date": duty.duty_date.isoformat(),
-        "surgeon_name": duty.surgeon_name,
-        "duty_start": duty.duty_start,
-        "duty_end": duty.duty_end,
-        "duty_type": duty.duty_type,
-        "notes": duty.notes,
-    }
+    return {"ok": True, "updated_count": len(duties_to_update)}
 
 
 @router.delete("/duties/{duty_id}")
 async def delete_duty(
     duty_id: int,
+    scope: str = Query("this"),  # "this" | "future" | "all"
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -438,6 +472,20 @@ async def delete_duty(
     duty = db.query(models.SurgeonDuty).filter(models.SurgeonDuty.id == duty_id).first()
     if not duty:
         raise HTTPException(status_code=404, detail="Duty not found")
-    db.delete(duty)
+
+    if scope == "all" and duty.repeat_group_id:
+        duties_to_delete = db.query(models.SurgeonDuty).filter(
+            models.SurgeonDuty.repeat_group_id == duty.repeat_group_id
+        ).all()
+    elif scope == "future" and duty.repeat_group_id:
+        duties_to_delete = db.query(models.SurgeonDuty).filter(
+            models.SurgeonDuty.repeat_group_id == duty.repeat_group_id,
+            models.SurgeonDuty.duty_date >= duty.duty_date,
+        ).all()
+    else:
+        duties_to_delete = [duty]
+
+    for d in duties_to_delete:
+        db.delete(d)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "deleted_count": len(duties_to_delete)}

@@ -93,30 +93,18 @@
 
     <!-- Surgeon Duty Schedule -->
     <div class="card" style="margin-bottom:1rem">
-      <div class="card-header">
+      <div class="card-header" style="flex-wrap:wrap;gap:0.4rem">
         <h2 class="card-title" style="font-size:1rem">👨‍⚕️ Surgeon Duty Schedule</h2>
-        <div style="display:flex;gap:0.5rem;align-items:center">
-          <input type="date" id="duty-week-start" style="font-size:0.8rem;padding:0.2rem 0.4rem" onchange="loadDuties()">
-          <button class="btn btn-outline btn-sm" onclick="loadDuties()">🔄</button>
+        <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="dutyWeekNav(-1)" title="Previous week">‹</button>
+          <span id="duty-week-label" style="font-size:0.82rem;min-width:150px;text-align:center;font-weight:500">…</span>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="dutyWeekNav(1)" title="Next week">›</button>
+          <button class="btn btn-outline btn-sm" onclick="_dutyAnchor=new Date().toISOString().slice(0,10);loadDuties()">Today</button>
           <button class="btn btn-primary btn-sm" onclick="openDutyForm()" id="duty-add-btn">+ Add Duty</button>
         </div>
       </div>
-      <div id="duty-table-wrap">
-        <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
-          <thead>
-            <tr style="background:var(--bg-secondary)">
-              <th style="padding:0.4rem 0.6rem;text-align:left;border-bottom:1px solid var(--border)">Date</th>
-              <th style="padding:0.4rem 0.6rem;text-align:left;border-bottom:1px solid var(--border)">Surgeon</th>
-              <th style="padding:0.4rem 0.6rem;text-align:left;border-bottom:1px solid var(--border)">Time</th>
-              <th style="padding:0.4rem 0.6rem;text-align:left;border-bottom:1px solid var(--border)">Type</th>
-              <th style="padding:0.4rem 0.6rem;text-align:left;border-bottom:1px solid var(--border)">Notes</th>
-              <th style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border)"></th>
-            </tr>
-          </thead>
-          <tbody id="duty-tbody">
-            <tr><td colspan="6" style="padding:1rem;text-align:center;color:var(--text-muted)">Loading…</td></tr>
-          </tbody>
-        </table>
+      <div id="duty-table-wrap" style="overflow-x:auto">
+        <div style="padding:0.75rem;text-align:center;color:var(--text-muted)">Loading…</div>
       </div>
     </div>
 
@@ -167,7 +155,7 @@
 
 <!-- Duty Form Modal -->
 <div class="modal-overlay hidden" id="duty-modal">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:500px">
     <div class="modal-header">
       <h3 id="duty-modal-title">👨‍⚕️ Add Surgeon Duty</h3>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('duty-modal')">✕</button>
@@ -177,8 +165,8 @@
       <div class="form-grid form-grid-2">
         <div class="form-group"><label>Date <span class="required">*</span></label><input type="date" id="duty-date"></div>
         <div class="form-group"><label>Surgeon Name <span class="required">*</span></label><input type="text" id="duty-surgeon" placeholder="Dr. Name" list="user-list-duty"></div>
-        <div class="form-group"><label>Start Time</label><input type="time" id="duty-start" placeholder="08:00"></div>
-        <div class="form-group"><label>End Time</label><input type="time" id="duty-end" placeholder="17:00"></div>
+        <div class="form-group"><label>Start Time</label><input type="time" id="duty-start"></div>
+        <div class="form-group"><label>End Time</label><input type="time" id="duty-end"></div>
         <div class="form-group span-2"><label>Duty Type</label>
           <select id="duty-type">
             <option value="">— Select —</option>
@@ -191,6 +179,34 @@
         </div>
         <div class="form-group span-2"><label>Notes</label><textarea id="duty-notes" rows="2" placeholder="Additional notes…"></textarea></div>
       </div>
+
+      <!-- Repeat options — new duty only -->
+      <div id="duty-repeat-section" style="margin-top:0.7rem;padding:0.55rem 0.75rem;background:var(--bg-secondary);border-radius:6px">
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;margin:0;font-size:0.85rem">
+          <input type="checkbox" id="duty-repeat" onchange="toggleDutyRepeat()">
+          <strong>Repeat every 7 days</strong>
+        </label>
+        <div id="duty-repeat-options" class="hidden" style="margin-top:0.45rem;font-size:0.84rem;display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
+          Repeat for
+          <input type="number" id="duty-repeat-weeks" min="1" max="52" value="4"
+                 oninput="updateRepeatTotal()"
+                 style="width:58px;padding:0.15rem 0.3rem;display:inline-block">
+          weeks
+          <span style="color:var(--text-muted);font-size:0.78rem">(total: <span id="duty-repeat-total">5</span> entries)</span>
+        </div>
+      </div>
+
+      <!-- Series scope — edit mode, series only -->
+      <div id="duty-scope-section" class="hidden" style="margin-top:0.7rem;padding:0.55rem 0.75rem;background:var(--bg-secondary);border-radius:6px;font-size:0.84rem">
+        <div style="color:var(--text-muted);margin-bottom:0.35rem">↻ Part of a repeating series</div>
+        <label style="display:block;margin-bottom:0.25rem">Apply changes to:</label>
+        <select id="duty-edit-scope">
+          <option value="this">This entry only</option>
+          <option value="future">This and future entries</option>
+          <option value="all">All entries in series</option>
+        </select>
+      </div>
+
       <datalist id="user-list-duty"></datalist>
       <div class="flex gap-2 mt-3">
         <button class="btn btn-primary" onclick="saveDuty()">💾 Save</button>
@@ -362,9 +378,10 @@ function renderSchedule() {
   const empty = document.getElementById("sched-empty");
   if (!listEl) return;
 
-  let filtered = _scheduleData;
+  let filtered = _scheduleData.slice();
   if (!showComplete) filtered = filtered.filter(b => b.status !== "complete" && b.status !== "completed" && b.status !== "exported");
   if (orFilter) filtered = filtered.filter(b => String(b.or_number) === orFilter);
+  filtered.sort((a, b) => (a.slot_start || 0) - (b.slot_start || 0) || (a.sort_order || 0) - (b.sort_order || 0));
 
   if (!filtered.length) {
     listEl.innerHTML = "";
@@ -372,27 +389,39 @@ function renderSchedule() {
     return;
   }
   empty.style.display = "none";
-  listEl.innerHTML = filtered.map(b => schedRow(b)).join("");
+  listEl.innerHTML = filtered.map((b, idx) => schedRow(b, idx + 1)).join("");
 }
 
-function schedRow(b) {
+function schedRow(b, seq) {
   const statusColor = { waiting: "#6b7280", ongoing: "#d97706", complete: "#059669",
                         draft: "#6b7280", completed: "#059669", exported: "#059669" };
-  const col = statusColor[b.status] || "#6b7280";
   const statusLabel = { waiting: "Waiting", ongoing: "Ongoing", complete: "Complete",
                         draft: "Waiting", completed: "Complete", exported: "Complete" };
+  const col = statusColor[b.status] || "#6b7280";
+  const hour = b.slot_start || 0;
+  const periodColor = hour < 12 ? "#2563eb" : hour < 17 ? "#d97706" : "#7c3aed";
+  const periodLabel = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
   return `<div draggable="true" id="scard-${b.id}"
     ondragstart="event.dataTransfer.setData('bookingId','${b.id}')"
-    style="border-left:3px solid ${col};background:var(--bg-secondary);border-radius:0.4rem;
-           padding:0.35rem 0.7rem;margin-bottom:0.3rem;cursor:grab;font-size:0.81rem;
-           display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
-    <span style="font-weight:700;color:var(--primary);white-space:nowrap;min-width:90px">${b.time_range} OR${b.or_number}</span>
-    <span style="font-weight:600">${b.hn}</span>
-    <span>${b.patient_name}</span>
-    <span class="text-muted" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.surgical_procedure || "—"}</span>
-    <span class="text-muted" style="white-space:nowrap">${b.surgeon || "—"}</span>
-    <span style="color:${col};font-weight:600;font-size:0.72rem;white-space:nowrap">${statusLabel[b.status] || b.status}</span>
-    <a href="/record?id=${b.record_id}" class="btn btn-outline btn-sm" style="font-size:0.72rem;padding:0.1rem 0.45rem;white-space:nowrap">Open</a>
+    style="border-radius:0.5rem;border:1px solid var(--border);margin-bottom:0.5rem;overflow:hidden;cursor:grab">
+    <div style="background:${periodColor};padding:0.28rem 0.7rem;display:flex;align-items:center;gap:0.5rem">
+      <span style="color:#fff;font-weight:700;font-size:0.82rem;min-width:38px">No.${seq}</span>
+      <span style="color:rgba(255,255,255,0.95);font-size:0.82rem;font-weight:600">${b.time_range}</span>
+      <span style="color:rgba(255,255,255,0.85);font-size:0.78rem">OR ${b.or_number}</span>
+      <span style="margin-left:auto;color:rgba(255,255,255,0.72);font-size:0.72rem">${periodLabel}</span>
+    </div>
+    <div style="padding:0.38rem 0.7rem;background:var(--bg-card);font-size:0.82rem;
+                display:grid;grid-template-columns:auto 1fr;gap:0.1rem 0.55rem;align-items:baseline">
+      <span style="color:var(--text-muted);font-size:0.73rem">HN</span><span style="font-weight:700">${b.hn}</span>
+      <span style="color:var(--text-muted);font-size:0.73rem">Patient</span><span>${b.patient_name}</span>
+      <span style="color:var(--text-muted);font-size:0.73rem">Procedure</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.surgical_procedure || "—"}</span>
+      <span style="color:var(--text-muted);font-size:0.73rem">Surgeon</span><span>${b.surgeon || "—"}</span>
+    </div>
+    <div style="padding:0.22rem 0.7rem;background:var(--bg-secondary);display:flex;align-items:center;gap:0.5rem">
+      <span style="color:${col};font-weight:600;font-size:0.74rem">${statusLabel[b.status] || b.status}</span>
+      <a href="/record?id=${b.record_id}" class="btn btn-outline btn-sm"
+         style="margin-left:auto;font-size:0.72rem;padding:0.1rem 0.5rem">Open →</a>
+    </div>
   </div>`;
 }
 
@@ -546,20 +575,27 @@ async function deleteUser(id, username) {
 }
 
 // ── Surgeon Duty Schedule ─────────────────────────────────
-function _isoWeekBounds(anchor) {
-  const d = new Date(anchor);
-  d.setHours(0,0,0,0);
-  const day = d.getDay(); // 0=Sun
-  const mon = new Date(d); mon.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  return [mon.toISOString().slice(0,10), sun.toISOString().slice(0,10)];
+
+function _sunWeekBounds(anchor) {
+  const d = new Date(anchor + "T00:00:00");
+  const sun = new Date(d); sun.setDate(d.getDate() - d.getDay()); // back to Sunday
+  const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+  return [sun.toISOString().slice(0,10), sat.toISOString().slice(0,10)];
 }
 
 let _dutyData = [];
+let _dutyMap = {};
+let _dutyAnchor = new Date().toISOString().slice(0,10);
+
+function dutyWeekNav(dir) {
+  const d = new Date(_dutyAnchor + "T00:00:00");
+  d.setDate(d.getDate() + dir * 7);
+  _dutyAnchor = d.toISOString().slice(0,10);
+  loadDuties();
+}
 
 async function loadDuties() {
-  const anchor = document.getElementById("duty-week-start")?.value || new Date().toISOString().slice(0,10);
-  const [start, end] = _isoWeekBounds(anchor);
+  const [start, end] = _sunWeekBounds(_dutyAnchor);
   try {
     _dutyData = await API.listDuties({ start_date: start, end_date: end });
     renderDutyTable();
@@ -567,28 +603,90 @@ async function loadDuties() {
 }
 
 function renderDutyTable() {
-  const tbody = document.getElementById("duty-tbody");
-  if (!tbody) return;
-  if (!_dutyData.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="padding:1rem;text-align:center;color:var(--text-muted)">No duty assignments this week. Click "+ Add Duty" to create one.</td></tr>`;
-    return;
+  const container = document.getElementById("duty-table-wrap");
+  if (!container) return;
+
+  const [sunStr] = _sunWeekBounds(_dutyAnchor);
+
+  // Build 7-day array Sun–Sat
+  const week = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(sunStr + "T00:00:00");
+    d.setDate(d.getDate() + i);
+    week.push(d);
   }
-  const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  tbody.innerHTML = _dutyData.map((d, i) => {
-    const dateObj = new Date(d.duty_date + "T00:00:00");
-    const dayLabel = days[dateObj.getDay()];
-    const timeStr = d.duty_start ? `${d.duty_start}${d.duty_end ? " – " + d.duty_end : ""}` : "—";
-    return `<tr style="background:${i%2===0?"var(--bg-card)":"var(--bg-secondary)"}">
-      <td style="padding:0.4rem 0.6rem;white-space:nowrap"><strong>${dayLabel}</strong> ${d.duty_date}</td>
-      <td style="padding:0.4rem 0.6rem;font-weight:600">${d.surgeon_name}</td>
-      <td style="padding:0.4rem 0.6rem;white-space:nowrap">${timeStr}</td>
-      <td style="padding:0.4rem 0.6rem">${d.duty_type || "—"}</td>
-      <td style="padding:0.4rem 0.6rem;color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.notes || ""}</td>
-      <td style="padding:0.4rem 0.6rem;text-align:center">
-        <button class="btn btn-outline btn-sm" style="font-size:0.72rem;padding:0.1rem 0.4rem" onclick="openDutyForm(${JSON.stringify(d).replace(/"/g,'&quot;')})">✏</button>
-      </td>
-    </tr>`;
+
+  // Update week label in header
+  const lblEl = document.getElementById("duty-week-label");
+  if (lblEl) {
+    const mn = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const s = week[0], e = week[6];
+    lblEl.textContent = `${s.getDate()} ${mn[s.getMonth()]} – ${e.getDate()} ${mn[e.getMonth()]} ${e.getFullYear()}`;
+  }
+
+  // Group duties by date; populate _dutyMap for onclick references
+  const byDate = {};
+  _dutyMap = {};
+  _dutyData.forEach(d => {
+    _dutyMap[d.id] = d;
+    (byDate[d.duty_date] = byDate[d.duty_date] || []).push(d);
+  });
+
+  const dayNames = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+  const today = new Date().toISOString().slice(0,10);
+
+  const headerHtml = week.map(d => {
+    const iso = d.toISOString().slice(0,10);
+    const dd = String(d.getDate()).padStart(2,"0");
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    const isToday = iso === today;
+    return `<th style="padding:0.35rem 0.25rem;text-align:center;border-bottom:2px solid ${isToday?"var(--primary)":"var(--border)"};
+                min-width:80px;font-size:0.78rem;${isToday?"color:var(--primary)":""}">
+      <div style="font-weight:700">${dayNames[d.getDay()]}</div>
+      <div style="font-size:0.75em;opacity:0.75">${dd}/${mm}</div>
+    </th>`;
   }).join("");
+
+  const bodyHtml = `<tr style="vertical-align:top">` + week.map(d => {
+    const iso = d.toISOString().slice(0,10);
+    const duties = byDate[iso] || [];
+    const isToday = iso === today;
+    const bgStyle = isToday ? "background:rgba(59,130,246,0.05)" : "";
+    let cellContent;
+    if (!duties.length) {
+      cellContent = `<div style="color:var(--text-muted);font-size:0.72rem;text-align:center;padding:0.5rem 0">—</div>`;
+    } else {
+      cellContent = duties.map(duty => {
+        const timeStr = duty.duty_start ? `${duty.duty_start}${duty.duty_end?"–"+duty.duty_end:""}` : "";
+        return `<div style="background:var(--bg-secondary);border-radius:4px;padding:0.22rem 0.35rem;margin-bottom:0.2rem;font-size:0.75rem">
+          <div style="font-weight:600;line-height:1.3">${duty.surgeon_name}</div>
+          ${timeStr ? `<div style="color:var(--text-muted);font-size:0.7rem">${timeStr}</div>` : ""}
+          ${duty.duty_type ? `<div style="color:var(--text-muted);font-size:0.7rem">${duty.duty_type}</div>` : ""}
+          ${duty.repeat_group_id ? `<div style="color:var(--primary);font-size:0.65rem">↻ Series</div>` : ""}
+          <button onclick="openDutyForm(_dutyMap[${duty.id}])"
+                  style="border:none;background:none;color:var(--primary);cursor:pointer;font-size:0.68rem;padding:1px 0;margin-top:1px;display:block">✏ Edit</button>
+        </div>`;
+      }).join("");
+    }
+    return `<td style="padding:0.25rem;border-right:1px solid var(--border);vertical-align:top;${bgStyle};min-width:80px">${cellContent}</td>`;
+  }).join("") + `</tr>`;
+
+  container.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;min-width:560px">
+    <thead><tr style="background:var(--bg-secondary)">${headerHtml}</tr></thead>
+    <tbody>${bodyHtml}</tbody>
+  </table>`;
+}
+
+function toggleDutyRepeat() {
+  const checked = document.getElementById("duty-repeat").checked;
+  document.getElementById("duty-repeat-options").classList.toggle("hidden", !checked);
+  updateRepeatTotal();
+}
+
+function updateRepeatTotal() {
+  const weeks = parseInt(document.getElementById("duty-repeat-weeks").value) || 0;
+  const el = document.getElementById("duty-repeat-total");
+  if (el) el.textContent = weeks + 1;
 }
 
 function openDutyForm(duty) {
@@ -601,11 +699,28 @@ function openDutyForm(duty) {
   document.getElementById("duty-type").value = duty?.duty_type || "";
   document.getElementById("duty-notes").value = duty?.notes || "";
   document.getElementById("duty-delete-btn").classList.toggle("hidden", !duty?.id);
+
+  const isEdit = !!duty?.id;
+  const isSeries = !!(duty?.repeat_group_id);
+
+  // Repeat section only for new duties
+  document.getElementById("duty-repeat-section").classList.toggle("hidden", isEdit);
+  if (!isEdit) {
+    document.getElementById("duty-repeat").checked = false;
+    document.getElementById("duty-repeat-options").classList.add("hidden");
+    document.getElementById("duty-repeat-weeks").value = "4";
+    updateRepeatTotal();
+  }
+
+  // Scope section only when editing a series
+  document.getElementById("duty-scope-section").classList.toggle("hidden", !isSeries);
+
   openModal("duty-modal");
 }
 
 async function saveDuty() {
   const id = document.getElementById("duty-edit-id").value;
+  const isEdit = !!id;
   const data = {
     duty_date: document.getElementById("duty-date").value,
     surgeon_name: document.getElementById("duty-surgeon").value.trim(),
@@ -615,19 +730,42 @@ async function saveDuty() {
     notes: document.getElementById("duty-notes").value || null,
   };
   if (!data.duty_date || !data.surgeon_name) { toast("Date and surgeon name are required", "warning"); return; }
+
+  if (!isEdit) {
+    const repeat = document.getElementById("duty-repeat").checked;
+    if (repeat) data.repeat_weeks = parseInt(document.getElementById("duty-repeat-weeks").value) || 0;
+  } else {
+    const scopeSection = document.getElementById("duty-scope-section");
+    if (!scopeSection.classList.contains("hidden")) {
+      data.edit_scope = document.getElementById("duty-edit-scope").value;
+    }
+  }
+
   try {
-    if (id) { await API.updateDuty(parseInt(id), data); } else { await API.createDuty(data); }
+    if (isEdit) { await API.updateDuty(parseInt(id), data); } else { await API.createDuty(data); }
     closeModal("duty-modal");
-    toast("Duty saved", "success");
+    const n = data.repeat_weeks > 0 ? ` (${data.repeat_weeks + 1} entries created)` : "";
+    toast("Duty saved" + n, "success");
     loadDuties();
   } catch (err) { toast(err.message, "error"); }
 }
 
 async function deleteDutyConfirm() {
   const id = document.getElementById("duty-edit-id").value;
-  if (!id || !confirm("Delete this duty assignment?")) return;
+  if (!id) return;
+
+  const scopeSection = document.getElementById("duty-scope-section");
+  const isSeries = !scopeSection.classList.contains("hidden");
+  let scope = "this";
+  let confirmMsg = "Delete this duty assignment?";
+  if (isSeries) {
+    scope = document.getElementById("duty-edit-scope").value;
+    const labels = { this: "this entry only", future: "this and future entries in series", all: "all entries in series" };
+    confirmMsg = `Delete ${labels[scope] || "this entry"}?`;
+  }
+  if (!confirm(confirmMsg)) return;
   try {
-    await API.deleteDuty(parseInt(id));
+    await API.deleteDuty(parseInt(id), scope);
     closeModal("duty-modal");
     toast("Duty deleted", "success");
     loadDuties();
@@ -639,14 +777,6 @@ API.listUsers().then(users => {
   const dl = document.getElementById("user-list-duty");
   if (dl) users.forEach(u => { const o = document.createElement("option"); o.value = u.full_name || u.username; dl.appendChild(o); });
 }).catch(() => {});
-
-// Set duty week-start default to current week Monday
-(function() {
-  const el = document.getElementById("duty-week-start");
-  if (!el) return;
-  const [mon] = _isoWeekBounds(new Date().toISOString().slice(0,10));
-  el.value = mon;
-})();
 
 loadRecords();
 renderCal();

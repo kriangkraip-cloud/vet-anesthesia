@@ -317,6 +317,7 @@ class SurgeonDuty(Base):
     duty_end = Column(String(10))     # e.g. "17:00"
     duty_type = Column(String(50))    # Primary, On-call, etc.
     notes = Column(Text)
+    repeat_group_id = Column(String(36), nullable=True, index=True)  # links repeated series
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)

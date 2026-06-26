@@ -154,7 +154,10 @@ const API = {
   },
   createDuty: d => apiFetch("/api/duties", { method: "POST", body: JSON.stringify(d) }),
   updateDuty: (id, d) => apiFetch(`/api/duties/${id}`, { method: "PUT", body: JSON.stringify(d) }),
-  deleteDuty: id => apiFetch(`/api/duties/${id}`, { method: "DELETE" }),
+  deleteDuty: (id, scope) => {
+    const qs = scope ? `?scope=${encodeURIComponent(scope)}` : "";
+    return apiFetch(`/api/duties/${id}${qs}`, { method: "DELETE" });
+  },
 };
 
 /* ── Toast notifications ────────────────────────────────── */

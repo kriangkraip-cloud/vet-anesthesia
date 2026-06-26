@@ -58,6 +58,7 @@ async def run_migrations():
             "ALTER TABLE anesthetic_records ADD COLUMN procedure_notes TEXT",
             "ALTER TABLE anesthetic_records ADD COLUMN sample_collection TEXT",
             "ALTER TABLE anesthetic_records ADD COLUMN postop_medications TEXT",
+            "ALTER TABLE surgeon_duties ADD COLUMN repeat_group_id VARCHAR(36)",
             # Migrate old status values to new 3-status system
         ]
         for sql in migrations:
