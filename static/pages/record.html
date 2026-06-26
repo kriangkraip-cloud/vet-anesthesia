@@ -9,37 +9,8 @@
 </head>
 <body>
 
-<!-- Drug preset datalist (shared across all tabs) -->
-<datalist id="drug-preset-dl">
-  <option value="midazolam">
-  <option value="diazepam">
-  <option value="xylazine">
-  <option value="medetomidine">
-  <option value="dexmedetomidine">
-  <option value="acepromazine (dilute)">
-  <option value="ketamine">
-  <option value="propofol">
-  <option value="etomidate">
-  <option value="alfaxalone">
-  <option value="lidocaine">
-  <option value="bupivacaine">
-  <option value="morphine">
-  <option value="fentanyl (5ug/mL)">
-  <option value="buprenorphine">
-  <option value="butorphanol [2]">
-  <option value="butorphanol [10]">
-  <option value="atropine">
-  <option value="glycopyrrolate">
-  <option value="epinephrine">
-  <option value="dopamine">
-  <option value="dobutamine">
-  <option value="furosemide">
-  <option value="metoclopramide">
-  <option value="maropitant">
-  <option value="tramadol">
-  <option value="meloxicam">
-  <option value="carprofen">
-</datalist>
+<!-- Drug preset datalist (populated dynamically from DB) -->
+<datalist id="drug-preset-dl"></datalist>
 
 <div class="app-layout">
 
@@ -905,26 +876,25 @@ let chartCombined;
 const timers = { anes: null, surg: null };
 const timerStart = { anes: 0, surg: 0 };
 
-// ── Drug Presets from PDF reference ───────────────────────────
-const DRUG_PRESETS = {
-  "midazolam":           { concentration: 5,      dose_unit: "mg/kg" },
-  "diazepam":            { concentration: 5,      dose_unit: "mg/kg" },
-  "xylazine":            { concentration: 20,     dose_unit: "mg/kg" },
-  "medetomidine":        { concentration: 0.1,    dose_unit: "mcg/kg" },
-  "dexmedetomidine":     { concentration: 0.5,    dose_unit: "mcg/kg" },
-  "acepromazine (dilute)":{ concentration: 10,    dose_unit: "mg/kg" },
-  "ketamine":            { concentration: 50,     dose_unit: "mg/kg" },
-  "propofol":            { concentration: 10,     dose_unit: "mg/kg" },
-  "etomidate":           { concentration: 2,      dose_unit: "mg/kg" },
-  "alfaxalone":          { concentration: 10,     dose_unit: "mg/kg" },
-  "lidocaine":           { concentration: 20,     dose_unit: "mg/kg" },
-  "bupivacaine":         { concentration: 5,      dose_unit: "mg/kg" },
-  "morphine":            { concentration: 10,     dose_unit: "mg/kg" },
-  "fentanyl (5ug/mL)":   { concentration: 0.005,  dose_unit: "mcg/kg" },
-  "buprenorphine":       { concentration: 0.3,    dose_unit: "mcg/kg" },
-  "butorphanol [2]":     { concentration: 2,      dose_unit: "mg/kg" },
-  "butorphanol [10]":    { concentration: 10,     dose_unit: "mg/kg" },
-};
+// ── Drug Presets (loaded from DB) ─────────────────────────────
+let DRUG_PRESETS = {};
+
+async function loadDrugPresets() {
+  try {
+    const presets = await API.listDrugPresets();
+    DRUG_PRESETS = {};
+    const dl = document.getElementById("drug-preset-dl");
+    if (dl) dl.innerHTML = "";
+    presets.forEach(p => {
+      DRUG_PRESETS[p.drug_name] = { concentration: p.concentration, dose_unit: p.dose_unit };
+      if (dl) {
+        const opt = document.createElement("option");
+        opt.value = p.drug_name;
+        dl.appendChild(opt);
+      }
+    });
+  } catch (e) { console.warn("Could not load drug presets", e); }
+}
 
 function applyDrugPreset(input) {
   const name = input.value.trim();
@@ -2221,6 +2191,7 @@ if ("Notification" in window && Notification.permission === "default") {
   Notification.requestPermission();
 }
 
+loadDrugPresets();
 loadRecord();
 </script>
 </body>

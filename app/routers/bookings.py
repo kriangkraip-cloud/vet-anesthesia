@@ -320,6 +320,94 @@ async def serve_image(
     return FileResponse(file_path)
 
 
+# ── Drug Presets ─────────────────────────────────────────────────────────────
+
+def _fmt_preset(p: models.DrugPreset) -> dict:
+    return {
+        "id": p.id,
+        "drug_name": p.drug_name,
+        "concentration": p.concentration,
+        "concentration_unit": p.concentration_unit,
+        "dose_unit": p.dose_unit,
+        "is_system": p.is_system,
+        "sort_order": p.sort_order,
+    }
+
+
+@router.get("/drug-presets")
+async def list_drug_presets(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    presets = db.query(models.DrugPreset).order_by(
+        models.DrugPreset.sort_order, models.DrugPreset.drug_name
+    ).all()
+    return [_fmt_preset(p) for p in presets]
+
+
+@router.post("/drug-presets")
+async def create_drug_preset(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role not in ("admin", "anesthesiologist"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    name = (data.get("drug_name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="drug_name required")
+    count = db.query(models.DrugPreset).count()
+    preset = models.DrugPreset(
+        drug_name=name,
+        concentration=data.get("concentration"),
+        concentration_unit=data.get("concentration_unit") or "mg/mL",
+        dose_unit=data.get("dose_unit") or "mg/kg",
+        is_system=False,
+        sort_order=count,
+    )
+    db.add(preset)
+    db.commit()
+    db.refresh(preset)
+    return _fmt_preset(preset)
+
+
+@router.put("/drug-presets/{preset_id}")
+async def update_drug_preset(
+    preset_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role not in ("admin", "anesthesiologist"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    preset = db.query(models.DrugPreset).filter(models.DrugPreset.id == preset_id).first()
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    for field in ("drug_name", "concentration", "concentration_unit", "dose_unit"):
+        if field in data and data[field] is not None:
+            setattr(preset, field, data[field])
+    preset.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(preset)
+    return _fmt_preset(preset)
+
+
+@router.delete("/drug-presets/{preset_id}")
+async def delete_drug_preset(
+    preset_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role not in ("admin", "anesthesiologist"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    preset = db.query(models.DrugPreset).filter(models.DrugPreset.id == preset_id).first()
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    db.delete(preset)
+    db.commit()
+    return {"ok": True}
+
+
 # ── Surgeon Duty Schedule ────────────────────────────────────────────────────
 
 

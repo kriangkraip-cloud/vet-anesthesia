@@ -307,6 +307,20 @@ class ProcedureImage(Base):
     record = relationship("AnestheticRecord", back_populates="procedure_images")
 
 
+class DrugPreset(Base):
+    __tablename__ = "drug_presets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    drug_name = Column(String(100), nullable=False)
+    concentration = Column(Float, nullable=True)
+    concentration_unit = Column(String(20), default="mg/mL")
+    dose_unit = Column(String(20), default="mg/kg")
+    is_system = Column(Boolean, default=False)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class SurgeonDuty(Base):
     __tablename__ = "surgeon_duties"
 

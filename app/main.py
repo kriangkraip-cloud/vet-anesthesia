@@ -140,6 +140,60 @@ async def seed_procedure_templates():
 
 
 @app.on_event("startup")
+async def seed_drug_presets():
+    db = SessionLocal()
+    try:
+        if db.query(models.DrugPreset).filter(models.DrugPreset.is_system == True).count() == 0:
+            defaults = [
+                # (drug_name, concentration, concentration_unit, dose_unit)
+                ("midazolam",            5,      "mg/mL",  "mg/kg"),
+                ("diazepam",             5,      "mg/mL",  "mg/kg"),
+                ("acepromazine",         10,     "mg/mL",  "mg/kg"),
+                ("xylazine",             20,     "mg/mL",  "mg/kg"),
+                ("medetomidine",         1,      "mg/mL",  "mcg/kg"),
+                ("dexmedetomidine",      0.5,    "mg/mL",  "mcg/kg"),
+                ("ketamine",             50,     "mg/mL",  "mg/kg"),
+                ("propofol",             10,     "mg/mL",  "mg/kg"),
+                ("alfaxalone",           10,     "mg/mL",  "mg/kg"),
+                ("etomidate",            2,      "mg/mL",  "mg/kg"),
+                ("lidocaine",            20,     "mg/mL",  "mg/kg"),
+                ("bupivacaine",          5,      "mg/mL",  "mg/kg"),
+                ("ropivacaine",          2,      "mg/mL",  "mg/kg"),
+                ("morphine",             10,     "mg/mL",  "mg/kg"),
+                ("fentanyl",             0.05,   "mg/mL",  "mcg/kg"),
+                ("buprenorphine",        0.3,    "mg/mL",  "mcg/kg"),
+                ("butorphanol",          10,     "mg/mL",  "mg/kg"),
+                ("tramadol",             50,     "mg/mL",  "mg/kg"),
+                ("meloxicam",            5,      "mg/mL",  "mg/kg"),
+                ("carprofen",            50,     "mg/mL",  "mg/kg"),
+                ("atropine",             0.6,    "mg/mL",  "mg/kg"),
+                ("glycopyrrolate",       0.2,    "mg/mL",  "mg/kg"),
+                ("neostigmine",          0.5,    "mg/mL",  "mg/kg"),
+                ("epinephrine",          1,      "mg/mL",  "mcg/kg"),
+                ("dopamine",             40,     "mg/mL",  "mcg/kg/min"),
+                ("dobutamine",           12.5,   "mg/mL",  "mcg/kg/min"),
+                ("furosemide",           10,     "mg/mL",  "mg/kg"),
+                ("maropitant",           10,     "mg/mL",  "mg/kg"),
+                ("metoclopramide",       5,      "mg/mL",  "mg/kg"),
+                ("dexamethasone",        4,      "mg/mL",  "mg/kg"),
+            ]
+            for i, (name, conc, conc_unit, dose_unit) in enumerate(defaults):
+                db.add(models.DrugPreset(
+                    drug_name=name,
+                    concentration=conc,
+                    concentration_unit=conc_unit,
+                    dose_unit=dose_unit,
+                    is_system=True,
+                    sort_order=i,
+                ))
+            db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+@app.on_event("startup")
 async def create_default_admin():
     db = SessionLocal()
     try:
