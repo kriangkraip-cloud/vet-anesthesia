@@ -64,17 +64,29 @@ def _run_column_migrations():
         conn.close()
 
     else:
-        # PostgreSQL / other: each ALTER TABLE in its own transaction
-        for table, col, col_type in _COLUMN_MIGRATIONS:
-            db = SessionLocal()
-            try:
-                db.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
-                db.commit()
-                print(f"[migration] pg: added {table}.{col}")
-            except Exception:
-                db.rollback()  # column likely already exists — safe to ignore
-            finally:
-                db.close()
+        # PostgreSQL: check information_schema first, then add missing columns
+        from sqlalchemy import text as _text
+        with engine.connect() as _conn:
+            for table, col, col_type in _COLUMN_MIGRATIONS:
+                try:
+                    row = _conn.execute(_text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_name=:t AND column_name=:c"
+                    ), {"t": table, "c": col}).fetchone()
+                    if not row:
+                        _conn.execute(_text(
+                            f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"
+                        ))
+                        _conn.commit()
+                        print(f"[migration] pg: added {table}.{col}")
+                    else:
+                        print(f"[migration] pg: {table}.{col} already exists")
+                except Exception as _e:
+                    print(f"[migration] pg error {table}.{col}: {_e}")
+                    try:
+                        _conn.rollback()
+                    except Exception:
+                        pass
 
 _run_column_migrations()
 
@@ -238,6 +250,22 @@ async def create_default_admin():
 
 
 _NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate"}
+
+
+@app.get("/api/debug/db")
+async def debug_db():
+    """Temporary diagnostic endpoint — shows DB type and patients table columns."""
+    from sqlalchemy import text, inspect as _inspect
+    info: dict = {"db_url_prefix": SQLALCHEMY_DATABASE_URL[:30], "columns": [], "error": None}
+    try:
+        insp = _inspect(engine)
+        if insp.has_table("patients"):
+            info["columns"] = [c["name"] for c in insp.get_columns("patients")]
+        else:
+            info["columns"] = "TABLE NOT FOUND"
+    except Exception as e:
+        info["error"] = str(e)
+    return JSONResponse(info)
 
 
 @app.get("/")
