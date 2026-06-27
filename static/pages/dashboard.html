@@ -420,11 +420,16 @@ async function searchPatients(q) {
       if (!patients.length) {
         box.innerHTML = `<div style="padding:0.6rem 0.8rem;font-size:0.83rem;color:var(--text-muted)">No patients found</div>`;
       } else {
-        box.innerHTML = patients.slice(0, 15).map(p => `
-          <a href="/patient?id=${p.id}" style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0.8rem;text-decoration:none;color:var(--text);border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
-            <span><strong style="font-size:0.85rem">${p.hn}</strong> <span style="font-size:0.83rem">${p.name}</span></span>
-            <span style="font-size:0.75rem;color:var(--text-muted)">${p.species||""} ${p.breed||""}</span>
-          </a>`).join("");
+        box.innerHTML = patients.slice(0, 15).map(p => {
+          const sub = [p.species, p.breed].filter(Boolean).join(" · ");
+          return `<a href="/patient?id=${p.id}" style="display:block;padding:0.45rem 0.8rem;text-decoration:none;color:var(--text);border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
+            <div style="display:flex;align-items:baseline;gap:0.35rem">
+              <strong style="font-size:0.82rem;color:var(--primary);white-space:nowrap">${p.hn}</strong>
+              <span style="font-size:0.85rem;font-weight:500">${p.name}</span>
+            </div>
+            ${sub ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.05rem">${sub}</div>` : ""}
+          </a>`;
+        }).join("");
       }
       box.style.display = "block";
     } catch (e) { box.style.display = "none"; }
