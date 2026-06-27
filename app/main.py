@@ -33,6 +33,37 @@ def _get_lan_ip() -> str:
 # Create all tables
 Base.metadata.create_all(bind=engine)
 
+# ── Synchronous column migrations (runs before server starts) ───────────────
+def _run_column_migrations():
+    db_url = SQLALCHEMY_DATABASE_URL
+    if not db_url.startswith("sqlite"):
+        return
+    # Extract actual file path from sqlite:///path or sqlite:////abs/path
+    sqlite_path = db_url[len("sqlite:///"):]
+    if not sqlite_path:
+        sqlite_path = DB_PATH
+    conn = _sqlite3.connect(sqlite_path)
+    conn.isolation_level = None   # autocommit — DDL committed immediately
+    cur = conn.cursor()
+    for table, col, col_type in [
+        ("monitoring_entries",  "fluid_rate",        "FLOAT"),
+        ("anesthetic_records",  "procedure_notes",   "TEXT"),
+        ("anesthetic_records",  "sample_collection", "TEXT"),
+        ("anesthetic_records",  "postop_medications","TEXT"),
+        ("surgeon_duties",      "repeat_group_id",   "VARCHAR(36)"),
+        ("patients",            "owner_phone",       "VARCHAR(20)"),
+    ]:
+        cur.execute(f"PRAGMA table_info({table})")
+        if col not in {r[1] for r in cur.fetchall()}:
+            try:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+                print(f"[migration] added {table}.{col}")
+            except Exception as e:
+                print(f"[migration] {table}.{col}: {e}")
+    conn.close()
+
+_run_column_migrations()
+
 app = FastAPI(title="Vet Anesthesia Records", version="1.0.0")
 
 # Register API routers
@@ -48,44 +79,6 @@ app.include_router(bookings.router)
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-
-@app.on_event("startup")
-async def run_migrations():
-    # Use Python's native sqlite3 module — fully bypasses SQLAlchemy transaction management
-    if not SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
-        return  # Skip for PostgreSQL / other databases
-
-    conn = _sqlite3.connect(DB_PATH)
-    conn.isolation_level = None  # autocommit — each statement commits immediately
-    cur = conn.cursor()
-
-    column_migrations = [
-        ("monitoring_entries",  "fluid_rate",        "FLOAT"),
-        ("anesthetic_records",  "procedure_notes",   "TEXT"),
-        ("anesthetic_records",  "sample_collection", "TEXT"),
-        ("anesthetic_records",  "postop_medications","TEXT"),
-        ("surgeon_duties",      "repeat_group_id",   "VARCHAR(36)"),
-        ("patients",            "owner_phone",       "VARCHAR(20)"),
-    ]
-
-    for table, col, col_type in column_migrations:
-        cur.execute(f"PRAGMA table_info({table})")
-        existing = {row[1] for row in cur.fetchall()}
-        if col not in existing:
-            try:
-                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
-                print(f"✓ Migration: {table}.{col}")
-            except Exception as e:
-                print(f"✗ Migration error ({table}.{col}): {e}")
-
-    # Status normalisation
-    try:
-        cur.execute("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'")
-        cur.execute("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')")
-    except Exception:
-        pass
-
-    conn.close()
 
 
 @app.on_event("startup")
