@@ -244,10 +244,26 @@ async function loadPatientRecords(patientId) {
           <td>${r.surgeon || "—"}</td>
           <td>${r.anesthesiologist || "—"}</td>
           <td><span class="badge badge-${r.status || "draft"}">${r.status || "draft"}</span></td>
-          <td><a href="/record?id=${r.id}" class="btn btn-primary btn-sm">Open</a></td>
+          <td style="display:flex;gap:0.4rem;align-items:center">
+            <a href="/record?id=${r.id}" class="btn btn-primary btn-sm">Open</a>
+            <button class="btn btn-outline btn-sm" onclick="deleteRecord(${r.id},'${(r.surgical_procedure||'this record').replace(/'/g,"\\'")}','${r.record_date||''}')" style="color:var(--danger);border-color:var(--danger)">delete</button>
+          </td>
         </tr>`).join("")}
       </tbody>
     </table></div>`;
+  } catch (err) { toast(err.message, "error"); }
+}
+
+async function deleteRecord(recordId, procedure, recordDate) {
+  const dateStr = recordDate ? ` (${new Date(recordDate).toLocaleDateString("en-GB")})` : "";
+  const confirmed = confirm(
+    `Are you sure you want to delete the anesthetic record for "${procedure}"${dateStr}?\n\nThe patient information will not be deleted.\n\nThis action cannot be undone.`
+  );
+  if (!confirmed) return;
+  try {
+    await API.deleteRecord(recordId);
+    toast("Anesthetic record deleted", "success");
+    loadRecords(currentPatient.id);
   } catch (err) { toast(err.message, "error"); }
 }
 

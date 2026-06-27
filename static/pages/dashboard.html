@@ -35,23 +35,35 @@
 
   <!-- Main -->
   <main class="main-content">
-    <!-- Stats (today's records only) -->
-    <div class="stat-cards" id="stat-cards">
-      <div class="stat-card">
-        <div class="stat-icon" style="background:#dbeafe">⏱</div>
-        <div><div class="stat-value" id="stat-total">—</div><div class="stat-label">Waiting <span style="font-size:0.7rem;opacity:0.6">(today)</span></div></div>
+    <!-- Stats + Patient Search row -->
+    <div style="display:flex;gap:1rem;align-items:stretch;margin-bottom:1rem;flex-wrap:wrap">
+      <!-- Stats (today's records only) -->
+      <div class="stat-cards" id="stat-cards" style="flex:1;margin-bottom:0">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#dbeafe">⏱</div>
+          <div><div class="stat-value" id="stat-total">—</div><div class="stat-label">Waiting <span style="font-size:0.7rem;opacity:0.6">(today)</span></div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#fef9c3">▶</div>
+          <div><div class="stat-value" id="stat-ongoing">—</div><div class="stat-label">Ongoing <span style="font-size:0.7rem;opacity:0.6">(today)</span></div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#d1f0ea">✓</div>
+          <div><div class="stat-value" id="stat-completed">—</div><div class="stat-label">Complete <span style="font-size:0.7rem;opacity:0.6">(today)</span></div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#f0fdf4">🐾</div>
+          <div><div class="stat-value" id="stat-patients">—</div><div class="stat-label">Patients</div></div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:#fef9c3">▶</div>
-        <div><div class="stat-value" id="stat-ongoing">—</div><div class="stat-label">Ongoing <span style="font-size:0.7rem;opacity:0.6">(today)</span></div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:#d1f0ea">✓</div>
-        <div><div class="stat-value" id="stat-completed">—</div><div class="stat-label">Complete <span style="font-size:0.7rem;opacity:0.6">(today)</span></div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:#f0fdf4">🐾</div>
-        <div><div class="stat-value" id="stat-patients">—</div><div class="stat-label">Patients</div></div>
+      <!-- Patient Search -->
+      <div class="card" style="min-width:260px;padding:0.75rem;position:relative">
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem">Search Registered Patients</div>
+        <input type="text" id="patient-search-input" placeholder="HN, name, species, owner…"
+          oninput="searchPatients(this.value)"
+          autocomplete="off"
+          style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text)">
+        <div id="patient-search-results" style="display:none;position:absolute;left:0.75rem;right:0.75rem;top:calc(100% - 0.75rem);background:var(--card-bg);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:200;max-height:260px;overflow-y:auto"></div>
       </div>
     </div>
 
@@ -395,6 +407,34 @@ document.getElementById("drug-presets-link").addEventListener("click", e => { e.
 
 let searchTimer;
 function debounceSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(loadRecords, 400); }
+
+// ── Patient search ──────────────────────────────────────────────────────────
+let _patientSearchTimer;
+async function searchPatients(q) {
+  clearTimeout(_patientSearchTimer);
+  const box = document.getElementById("patient-search-results");
+  if (!q || q.trim().length < 1) { box.style.display = "none"; return; }
+  _patientSearchTimer = setTimeout(async () => {
+    try {
+      const patients = await API.listPatients(q.trim());
+      if (!patients.length) {
+        box.innerHTML = `<div style="padding:0.6rem 0.8rem;font-size:0.83rem;color:var(--text-muted)">No patients found</div>`;
+      } else {
+        box.innerHTML = patients.slice(0, 15).map(p => `
+          <a href="/patient?id=${p.id}" style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0.8rem;text-decoration:none;color:var(--text);border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
+            <span><strong style="font-size:0.85rem">${p.hn}</strong> <span style="font-size:0.83rem">${p.name}</span></span>
+            <span style="font-size:0.75rem;color:var(--text-muted)">${p.species||""} ${p.breed||""}</span>
+          </a>`).join("");
+      }
+      box.style.display = "block";
+    } catch (e) { box.style.display = "none"; }
+  }, 300);
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest("#patient-search-input") && !e.target.closest("#patient-search-results")) {
+    document.getElementById("patient-search-results").style.display = "none";
+  }
+});
 
 function statusBadge(s) {
   const map = { waiting: "badge-waiting", ongoing: "badge-ongoing", complete: "badge-completed",
