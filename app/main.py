@@ -1,6 +1,5 @@
 import os
 import socket
-import sqlite3 as _sqlite3
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
@@ -45,48 +44,34 @@ _COLUMN_MIGRATIONS = [
 
 def _run_column_migrations():
     from sqlalchemy import text
-    db_url = SQLALCHEMY_DATABASE_URL
+    is_sqlite = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
 
-    if db_url.startswith("sqlite"):
-        # SQLite: use native sqlite3 for reliable DDL without transaction wrapping
-        sqlite_path = db_url[len("sqlite:///"):] or DB_PATH
-        conn = _sqlite3.connect(sqlite_path)
-        conn.isolation_level = None  # autocommit
-        cur = conn.cursor()
+    # Use the same engine for both SQLite and PostgreSQL — avoids locking conflicts
+    with engine.connect() as conn:
         for table, col, col_type in _COLUMN_MIGRATIONS:
-            cur.execute(f"PRAGMA table_info({table})")
-            if col not in {r[1] for r in cur.fetchall()}:
-                try:
-                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
-                    print(f"[migration] sqlite: added {table}.{col}")
-                except Exception as e:
-                    print(f"[migration] sqlite error {table}.{col}: {e}")
-        conn.close()
-
-    else:
-        # PostgreSQL: check information_schema first, then add missing columns
-        from sqlalchemy import text as _text
-        with engine.connect() as _conn:
-            for table, col, col_type in _COLUMN_MIGRATIONS:
-                try:
-                    row = _conn.execute(_text(
+            try:
+                if is_sqlite:
+                    result = conn.execute(text(f"PRAGMA table_info({table})"))
+                    existing = {r[1] for r in result.fetchall()}
+                    if col not in existing:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                        conn.commit()
+                        print(f"[migration] sqlite: added {table}.{col}")
+                else:
+                    row = conn.execute(text(
                         "SELECT column_name FROM information_schema.columns "
                         "WHERE table_name=:t AND column_name=:c"
                     ), {"t": table, "c": col}).fetchone()
                     if not row:
-                        _conn.execute(_text(
-                            f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"
-                        ))
-                        _conn.commit()
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                        conn.commit()
                         print(f"[migration] pg: added {table}.{col}")
-                    else:
-                        print(f"[migration] pg: {table}.{col} already exists")
-                except Exception as _e:
-                    print(f"[migration] pg error {table}.{col}: {_e}")
-                    try:
-                        _conn.rollback()
-                    except Exception:
-                        pass
+            except Exception as e:
+                print(f"[migration] error {table}.{col}: {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
 
 _run_column_migrations()
 
