@@ -51,33 +51,44 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 @app.on_event("startup")
 async def run_migrations():
     from sqlalchemy import text
-    db = SessionLocal()
-    try:
-        migrations = [
-            "ALTER TABLE monitoring_entries ADD COLUMN fluid_rate FLOAT",
-            "ALTER TABLE anesthetic_records ADD COLUMN procedure_notes TEXT",
-            "ALTER TABLE anesthetic_records ADD COLUMN sample_collection TEXT",
-            "ALTER TABLE anesthetic_records ADD COLUMN postop_medications TEXT",
-            "ALTER TABLE surgeon_duties ADD COLUMN repeat_group_id VARCHAR(36)",
-            "ALTER TABLE patients ADD COLUMN owner_phone VARCHAR(20)",
-            # Migrate old status values to new 3-status system
-        ]
-        for sql in migrations:
-            try:
-                db.execute(text(sql))
-                db.commit()
-            except Exception:
-                db.rollback()
 
-        # Migrate old status values: draft→waiting, completed→complete, exported→complete
+    # Use direct engine connection with explicit checks to avoid transaction issues
+    with engine.connect() as conn:
+        def col_exists(table: str, col: str) -> bool:
+            rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+            return any(r[1] == col for r in rows)
+
+        def tbl_exists(table: str) -> bool:
+            r = conn.execute(text(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=:t"
+            ), {"t": table}).fetchone()
+            return r is not None
+
+        column_migrations = [
+            ("monitoring_entries",  "fluid_rate",       "FLOAT"),
+            ("anesthetic_records",  "procedure_notes",  "TEXT"),
+            ("anesthetic_records",  "sample_collection","TEXT"),
+            ("anesthetic_records",  "postop_medications","TEXT"),
+            ("surgeon_duties",      "repeat_group_id",  "VARCHAR(36)"),
+            ("patients",            "owner_phone",      "VARCHAR(20)"),
+        ]
+
+        for table, col, col_type in column_migrations:
+            if tbl_exists(table) and not col_exists(table, col):
+                try:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                    print(f"✓ Migration: added {table}.{col}")
+                except Exception as e:
+                    print(f"✗ Migration warning ({table}.{col}): {e}")
+
+        # Migrate old status values
         try:
-            db.execute(text("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'"))
-            db.execute(text("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')"))
-            db.commit()
+            conn.execute(text("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'"))
+            conn.execute(text("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')"))
+            conn.commit()
         except Exception:
-            db.rollback()
-    finally:
-        db.close()
+            pass
 
 
 @app.on_event("startup")
