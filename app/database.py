@@ -10,11 +10,17 @@ DATA_DIR = os.environ.get("DATA_DIR", BASE_DIR)
 os.makedirs(DATA_DIR, exist_ok=True)
 
 DB_PATH = os.path.join(DATA_DIR, "anesthesia.db")
-SQLALCHEMY_DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
+
+_raw_url = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
+# Railway provides postgres:// — SQLAlchemy 2.x requires postgresql://
+SQLALCHEMY_DATABASE_URL = _raw_url.replace("postgres://", "postgresql://", 1)
+
+_is_sqlite = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    # check_same_thread is SQLite-only; passing it to psycopg2 raises TypeError
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
