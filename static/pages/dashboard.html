@@ -116,17 +116,22 @@
         <a href="/patient?mode=new" class="btn btn-primary"><span>➕</span> New Patient</a>
       </div>
 
-      <div class="flex gap-2 mb-3" style="flex-wrap:wrap">
+      <div class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:center">
         <input type="text" id="search-input" placeholder="Search HN, name, species, surgeon…"
-               style="max-width:320px; flex:1" oninput="debounceSearch()"
+               style="max-width:280px; flex:1; min-width:140px" oninput="debounceSearch()"
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-        <select id="status-filter" onchange="loadRecords()" style="width:140px">
+        <select id="status-filter" onchange="loadRecords()" style="width:130px">
           <option value="">All Status</option>
           <option value="waiting">Waiting</option>
           <option value="ongoing">Ongoing</option>
           <option value="complete">Complete</option>
         </select>
-        <button class="btn btn-outline btn-sm" onclick="loadRecords()">🔄 Refresh</button>
+        <input type="date" id="date-from" onchange="loadRecords()" title="From date"
+               style="width:140px;font-size:0.83rem;padding:0.28rem 0.4rem">
+        <input type="date" id="date-to" onchange="loadRecords()" title="To date"
+               style="width:140px;font-size:0.83rem;padding:0.28rem 0.4rem">
+        <button class="btn btn-outline btn-sm" onclick="clearDateFilter()" title="Clear date filter">✕ Date</button>
+        <button class="btn btn-outline btn-sm" onclick="loadRecords()">🔄</button>
       </div>
 
       <!-- Desktop table -->
@@ -494,6 +499,9 @@ function schedRow(b, seq) {
   const bg = seq % 2 === 0 ? "var(--bg-secondary)" : "var(--bg-card)";
   return `<tr draggable="true" id="scard-${b.id}"
     ondragstart="event.dataTransfer.setData('bookingId','${b.id}')"
+    ondragover="event.preventDefault();this.style.outline='2px solid var(--primary)'"
+    ondragleave="this.style.outline=''"
+    ondrop="event.preventDefault();this.style.outline='';swapBookings(event.dataTransfer.getData('bookingId'),'${b.id}')"
     style="background:${bg};cursor:grab">
     <td style="padding:0.3rem 0.5rem;text-align:center">
       <span style="background:${periodColor};color:#fff;border-radius:3px;padding:1px 5px;font-size:0.72rem;font-weight:700">${seq}</span>
@@ -530,13 +538,37 @@ async function moveBooking(bookingId, newSlotStart) {
   } catch (err) { toast(err.message, "error"); }
 }
 
+async function swapBookings(srcIdStr, tgtIdStr) {
+  const srcId = parseInt(srcIdStr), tgtId = parseInt(tgtIdStr);
+  if (!srcId || !tgtId || srcId === tgtId) return;
+  const src = _scheduleData.find(x => x.id === srcId);
+  const tgt = _scheduleData.find(x => x.id === tgtId);
+  if (!src || !tgt) return;
+  try {
+    await Promise.all([
+      API.upsertBooking(src.record_id, { surgery_date: calSelected, or_number: src.or_number, slot_start: tgt.slot_start, num_slots: src.num_slots || 1 }),
+      API.upsertBooking(tgt.record_id, { surgery_date: calSelected, or_number: tgt.or_number, slot_start: src.slot_start, num_slots: tgt.num_slots || 1 }),
+    ]);
+    toast("Order updated", "success");
+    loadSchedule();
+  } catch (err) { toast(err.message, "error"); }
+}
+
+function clearDateFilter() {
+  document.getElementById("date-from").value = "";
+  document.getElementById("date-to").value = "";
+  loadRecords();
+}
+
 async function loadRecords() {
   const q = document.getElementById("search-input").value.trim().toLowerCase();
   const statusFilter = document.getElementById("status-filter").value;
+  const dateFrom = document.getElementById("date-from").value;
+  const dateTo = document.getElementById("date-to").value;
   const today = new Date().toISOString().slice(0, 10);
 
   try {
-    // Always load all records — stats are derived from today's subset, table from client filter
+    // Always load all records so stats reflect today regardless of date filter
     const records = await API.listRecords({});
     const tbody = document.getElementById("records-tbody");
 
@@ -560,6 +592,12 @@ async function loadRecords() {
     }
     if (statusFilter) {
       filtered = filtered.filter(r => r.status === statusFilter);
+    }
+    if (dateFrom) {
+      filtered = filtered.filter(r => r.record_date && r.record_date >= dateFrom);
+    }
+    if (dateTo) {
+      filtered = filtered.filter(r => r.record_date && r.record_date <= dateTo);
     }
 
     if (filtered.length === 0) {
@@ -589,7 +627,7 @@ async function loadRecords() {
             <a href="/record?id=${r.id}" class="btn btn-primary btn-sm">Open</a>
             <a href="/patient?id=${r.patient_id}" class="btn btn-outline btn-sm" title="Edit patient information">✏ Edit</a>
             <button class="btn btn-outline btn-sm" onclick="exportPDF(${r.id})" title="Export PDF">PDF</button>
-            <button class="btn btn-danger btn-sm" onclick="deletePatientRecord(${r.patient_id},'${(r.patient_name||r.hn||"").replace(/'/g,"\\'")}',${r.id})" title="Delete patient & all records">🗑</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteRecord(${r.id},'${(r.patient_name||r.hn||"").replace(/'/g,"\\'")}','${r.record_date||""}')" title="Delete this anesthetic record">🗑</button>
           </div>
         </td>
       </tr>
@@ -608,14 +646,15 @@ async function exportPDF(id) {
   } catch (err) { toast(err.message, "error"); }
 }
 
-async function deletePatientRecord(patientId, patientName, _recordId) {
+async function deleteRecord(recordId, patientName, recordDate) {
+  const dateStr = recordDate ? ` (${new Date(recordDate).toLocaleDateString("en-GB")})` : "";
   const confirmed = confirm(
-    `Are you sure you want to delete patient "${patientName}"?\n\nThis will permanently remove the patient and ALL their anesthetic records.\n\nThis action cannot be undone.`
+    `Are you sure you want to delete this anesthetic record for "${patientName}"${dateStr}?\n\nThe patient information will not be deleted.\n\nThis action cannot be undone.`
   );
   if (!confirmed) return;
   try {
-    await API.deletePatient(patientId);
-    toast(`Patient "${patientName}" deleted`, "success");
+    await API.deleteRecord(recordId);
+    toast("Anesthetic record deleted", "success");
     loadRecords();
   } catch (err) { toast(err.message, "error"); }
 }

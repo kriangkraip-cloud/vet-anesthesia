@@ -16,6 +16,8 @@ async def list_records(
     q: Optional[str] = Query(None),
     patient_id: Optional[int] = Query(None),
     status: Optional[str] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -28,6 +30,10 @@ async def list_records(
         query = query.filter(models.AnestheticRecord.patient_id == patient_id)
     if status:
         query = query.filter(models.AnestheticRecord.status == status)
+    if date_from:
+        query = query.filter(models.AnestheticRecord.record_date >= date_from)
+    if date_to:
+        query = query.filter(models.AnestheticRecord.record_date <= date_to)
     if q:
         search = f"%{q}%"
         query = query.filter(

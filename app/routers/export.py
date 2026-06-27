@@ -495,7 +495,29 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
         ]))
         elements.append(t)
 
-    # Procedure section
+    # Surgical timing
+    section("Timing")
+    kv_table([
+        ("Anesthesia Start", _fmt_dt(record.anesthesia_start)), ("Anesthesia End", _fmt_dt(record.anesthesia_end)),
+        ("Procedure Start", _fmt_dt(record.surgery_start)), ("Procedure End", _fmt_dt(record.surgery_end)),
+    ], cols=2)
+
+    # Recovery
+    section("Recovery")
+    kv_table([
+        ("Extubation Time", _fmt_dt(record.extubation_time)), ("Sternal Time", _fmt_dt(record.sternal_time)),
+        ("Standing Time", _fmt_dt(record.standing_time)), ("Recovery Quality", record.recovery_quality),
+    ], cols=2)
+    if record.recovery_complications:
+        elements.append(Paragraph(f"<b>Complications:</b> {record.recovery_complications}", small))
+    if record.postop_pain_management:
+        elements.append(Paragraph(f"<b>Postop Pain Mgmt:</b> {record.postop_pain_management}", small))
+    if record.postop_medications:
+        elements.append(Paragraph(f"<b>Postop Medications:</b> {record.postop_medications}", small))
+    if record.final_note:
+        elements.append(Paragraph(f"<b>Final Note:</b> {record.final_note}", small))
+
+    # Procedure section (after recovery)
     has_procedure = any([record.procedure_notes, record.sample_collection, record.postop_medications])
     export_images = [img for img in (getattr(record, "procedure_images", None) or []) if img.for_export]
     if has_procedure or export_images:
@@ -524,8 +546,6 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
                 except Exception:
                     pass
             if img_row:
-                # 3-column grid
-                col_w = [6*cm] * min(len(img_row), 3)
                 for chunk_start in range(0, len(img_row), 3):
                     chunk = img_row[chunk_start:chunk_start+3]
                     imgs = [c[0] for c in chunk]
@@ -541,28 +561,6 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
                     ]))
                     elements.append(t)
                     elements.append(Spacer(1, 0.2*cm))
-
-    # Surgical timing
-    section("Timing")
-    kv_table([
-        ("Anesthesia Start", _fmt_dt(record.anesthesia_start)), ("Anesthesia End", _fmt_dt(record.anesthesia_end)),
-        ("Procedure Start", _fmt_dt(record.surgery_start)), ("Procedure End", _fmt_dt(record.surgery_end)),
-    ], cols=2)
-
-    # Recovery
-    section("Recovery")
-    kv_table([
-        ("Extubation Time", _fmt_dt(record.extubation_time)), ("Sternal Time", _fmt_dt(record.sternal_time)),
-        ("Standing Time", _fmt_dt(record.standing_time)), ("Recovery Quality", record.recovery_quality),
-    ], cols=2)
-    if record.recovery_complications:
-        elements.append(Paragraph(f"<b>Complications:</b> {record.recovery_complications}", small))
-    if record.postop_pain_management:
-        elements.append(Paragraph(f"<b>Postop Pain Mgmt:</b> {record.postop_pain_management}", small))
-    if record.postop_medications:
-        elements.append(Paragraph(f"<b>Postop Medications:</b> {record.postop_medications}", small))
-    if record.final_note:
-        elements.append(Paragraph(f"<b>Final Note:</b> {record.final_note}", small))
 
     # Signatures
     section("Signatures")
@@ -752,7 +750,21 @@ def _build_docx(record: models.AnestheticRecord, recorder_name: str = "") -> io.
                  e.route, e.response, e.note] for e in record.emergency_events]
         add_table(["Time", "Event", "Drug", "Dose", "Vol (mL)", "Route", "Response", "Note"], rows)
 
-    # Procedure section
+    add_heading("Timing", 1)
+    add_kv("Anesthesia Start / End", f"{_fmt_dt(record.anesthesia_start)} / {_fmt_dt(record.anesthesia_end)}")
+    add_kv("Procedure Start / End", f"{_fmt_dt(record.surgery_start)} / {_fmt_dt(record.surgery_end)}")
+
+    add_heading("Recovery", 1)
+    add_kv("Extubation Time", _fmt_dt(record.extubation_time))
+    add_kv("Sternal Time", _fmt_dt(record.sternal_time))
+    add_kv("Standing Time", _fmt_dt(record.standing_time))
+    add_kv("Recovery Quality", record.recovery_quality)
+    add_kv("Complications", record.recovery_complications)
+    add_kv("Postop Pain Management", record.postop_pain_management)
+    add_kv("Postop Medications", record.postop_medications)
+    add_kv("Final Note", record.final_note)
+
+    # Procedure section (after recovery)
     has_proc = any([record.procedure_notes, record.sample_collection, record.postop_medications])
     export_imgs = [img for img in (getattr(record, "procedure_images", None) or []) if img.for_export]
     if has_proc or export_imgs:
@@ -782,20 +794,6 @@ def _build_docx(record: models.AnestheticRecord, recorder_name: str = "") -> io.
                             cap.runs[0].font.size = Pt(8)
                 except Exception:
                     pass
-
-    add_heading("Timing", 1)
-    add_kv("Anesthesia Start / End", f"{_fmt_dt(record.anesthesia_start)} / {_fmt_dt(record.anesthesia_end)}")
-    add_kv("Procedure Start / End", f"{_fmt_dt(record.surgery_start)} / {_fmt_dt(record.surgery_end)}")
-
-    add_heading("Recovery", 1)
-    add_kv("Extubation Time", _fmt_dt(record.extubation_time))
-    add_kv("Sternal Time", _fmt_dt(record.sternal_time))
-    add_kv("Standing Time", _fmt_dt(record.standing_time))
-    add_kv("Recovery Quality", record.recovery_quality)
-    add_kv("Complications", record.recovery_complications)
-    add_kv("Postop Pain Management", record.postop_pain_management)
-    add_kv("Postop Medications", record.postop_medications)
-    add_kv("Final Note", record.final_note)
 
     # Signatures
     add_heading("Signatures", 1)

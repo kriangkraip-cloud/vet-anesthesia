@@ -33,6 +33,7 @@ class Patient(Base):
     age = Column(String(30))
     weight = Column(Float)
     owner_name = Column(String(100))
+    owner_phone = Column(String(20))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by_id = Column(Integer, ForeignKey("users.id"))

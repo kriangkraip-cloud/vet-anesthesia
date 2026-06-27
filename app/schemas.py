@@ -49,6 +49,7 @@ class PatientCreate(BaseModel):
     age: Optional[str] = None
     weight: Optional[float] = None
     owner_name: Optional[str] = None
+    owner_phone: Optional[str] = None
 
 
 class PatientUpdate(PatientCreate):
@@ -68,6 +69,7 @@ class PatientOut(BaseModel):
     age: Optional[str]
     weight: Optional[float]
     owner_name: Optional[str]
+    owner_phone: Optional[str]
     created_at: datetime
     updated_at: datetime
 

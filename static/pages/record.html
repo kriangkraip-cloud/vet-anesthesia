@@ -906,7 +906,7 @@ function applyDrugPreset(input) {
   if (!row) return;
   const concInput = row.querySelector("[name='concentration']");
   const unitSelect = row.querySelector("[name='dose_unit']");
-  if (concInput && !concInput.value) concInput.value = preset.concentration;
+  if (concInput) concInput.value = preset.concentration;
   if (unitSelect && preset.dose_unit) unitSelect.value = preset.dose_unit;
   recalcDrugRow(row);
 }
@@ -1038,13 +1038,29 @@ async function populateUsers() {
 
 // ── Status update ──────────────────────────────────────────
 async function updateStatus() {
-  const status = document.getElementById("status-select").value;
+  const sel = document.getElementById("status-select");
+  const newStatus = sel.value;
+  const prevStatus = record?.status || "waiting";
+
+  if (newStatus === "ongoing" && (prevStatus === "waiting" || prevStatus === "draft")) {
+    const phone = patient?.owner_phone;
+    const msg = phone
+      ? `โทรแจ้งเข้ารับการผ่าตัด: ${phone}`
+      : "No owner phone number recorded.";
+    const proceed = confirm(`${msg}\n\nChange status to Ongoing?`);
+    if (!proceed) {
+      sel.value = prevStatus === "draft" ? "waiting" : prevStatus;
+      return;
+    }
+  }
+
   try {
-    await API.updateRecord(recordId, { status });
+    record = await API.updateRecord(recordId, { status: newStatus });
     const statusEl = document.getElementById("banner-status");
-    statusEl.textContent = status;
-    statusEl.className = `badge badge-${status}`;
-    toast("Status updated to " + status, "success");
+    statusEl.textContent = newStatus;
+    const stClass = { waiting: "badge-draft", ongoing: "badge-ongoing", complete: "badge-completed" };
+    statusEl.className = `badge ${stClass[newStatus] || "badge-draft"}`;
+    toast("Status updated to " + newStatus, "success");
   } catch (err) { toast(err.message, "error"); }
 }
 

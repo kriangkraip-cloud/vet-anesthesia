@@ -93,9 +93,13 @@
           <label>Body Weight (kg)</label>
           <input type="number" id="weight" placeholder="0.0" step="0.01" min="0">
         </div>
-        <div class="form-group span-2">
+        <div class="form-group">
           <label>Owner Name</label>
           <input type="text" id="owner_name" placeholder="Owner's full name">
+        </div>
+        <div class="form-group">
+          <label>Owner Phone Number</label>
+          <input type="tel" id="owner_phone" placeholder="e.g. 081-234-5678">
         </div>
       </div>
     </div>
@@ -189,7 +193,7 @@ async function loadPatient(id) {
     document.getElementById("delete-btn").classList.remove("hidden");
 
     // Populate fields
-    ["hn","name","species","breed","sex","neuter_status","age","owner_name"].forEach(f => {
+    ["hn","name","species","breed","sex","neuter_status","age","owner_name","owner_phone"].forEach(f => {
       const el = document.getElementById(f);
       if (el) el.value = currentPatient[f] || "";
     });
@@ -279,6 +283,7 @@ async function savePatient() {
     age: document.getElementById("age").value || null,
     weight: parseFloat(document.getElementById("weight").value) || null,
     owner_name: document.getElementById("owner_name").value || null,
+    owner_phone: document.getElementById("owner_phone").value || null,
   };
 
   const ind = document.getElementById("save-indicator");
