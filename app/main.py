@@ -34,33 +34,47 @@ def _get_lan_ip() -> str:
 Base.metadata.create_all(bind=engine)
 
 # ── Synchronous column migrations (runs before server starts) ───────────────
+_COLUMN_MIGRATIONS = [
+    ("monitoring_entries",  "fluid_rate",        "FLOAT"),
+    ("anesthetic_records",  "procedure_notes",   "TEXT"),
+    ("anesthetic_records",  "sample_collection", "TEXT"),
+    ("anesthetic_records",  "postop_medications","TEXT"),
+    ("surgeon_duties",      "repeat_group_id",   "VARCHAR(36)"),
+    ("patients",            "owner_phone",       "VARCHAR(20)"),
+]
+
 def _run_column_migrations():
+    from sqlalchemy import text
     db_url = SQLALCHEMY_DATABASE_URL
-    if not db_url.startswith("sqlite"):
-        return
-    # Extract actual file path from sqlite:///path or sqlite:////abs/path
-    sqlite_path = db_url[len("sqlite:///"):]
-    if not sqlite_path:
-        sqlite_path = DB_PATH
-    conn = _sqlite3.connect(sqlite_path)
-    conn.isolation_level = None   # autocommit — DDL committed immediately
-    cur = conn.cursor()
-    for table, col, col_type in [
-        ("monitoring_entries",  "fluid_rate",        "FLOAT"),
-        ("anesthetic_records",  "procedure_notes",   "TEXT"),
-        ("anesthetic_records",  "sample_collection", "TEXT"),
-        ("anesthetic_records",  "postop_medications","TEXT"),
-        ("surgeon_duties",      "repeat_group_id",   "VARCHAR(36)"),
-        ("patients",            "owner_phone",       "VARCHAR(20)"),
-    ]:
-        cur.execute(f"PRAGMA table_info({table})")
-        if col not in {r[1] for r in cur.fetchall()}:
+
+    if db_url.startswith("sqlite"):
+        # SQLite: use native sqlite3 for reliable DDL without transaction wrapping
+        sqlite_path = db_url[len("sqlite:///"):] or DB_PATH
+        conn = _sqlite3.connect(sqlite_path)
+        conn.isolation_level = None  # autocommit
+        cur = conn.cursor()
+        for table, col, col_type in _COLUMN_MIGRATIONS:
+            cur.execute(f"PRAGMA table_info({table})")
+            if col not in {r[1] for r in cur.fetchall()}:
+                try:
+                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+                    print(f"[migration] sqlite: added {table}.{col}")
+                except Exception as e:
+                    print(f"[migration] sqlite error {table}.{col}: {e}")
+        conn.close()
+
+    else:
+        # PostgreSQL / other: each ALTER TABLE in its own transaction
+        for table, col, col_type in _COLUMN_MIGRATIONS:
+            db = SessionLocal()
             try:
-                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
-                print(f"[migration] added {table}.{col}")
-            except Exception as e:
-                print(f"[migration] {table}.{col}: {e}")
-    conn.close()
+                db.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                db.commit()
+                print(f"[migration] pg: added {table}.{col}")
+            except Exception:
+                db.rollback()  # column likely already exists — safe to ignore
+            finally:
+                db.close()
 
 _run_column_migrations()
 
