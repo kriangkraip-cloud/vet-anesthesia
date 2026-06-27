@@ -55,34 +55,40 @@ async def restore_backup(
     # Dispose SQLAlchemy engine so new connections pick up the restored file
     engine.dispose()
 
-    # Run schema migrations and status fixes on the restored DB so old backups
-    # get any columns added after the backup was created
+    # Run schema migrations on the restored DB so old backups get all newer columns
     try:
         from sqlalchemy import text
-        from ..database import SessionLocal, Base
-        # Create any tables that exist in the model but not in the restored DB
-        # (e.g. or_bookings, procedure_images added in a later version)
+        from ..database import Base
         Base.metadata.create_all(bind=engine)
-        mig_db = SessionLocal()
-        migrations = [
-            "ALTER TABLE monitoring_entries ADD COLUMN fluid_rate FLOAT",
-            "ALTER TABLE anesthetic_records ADD COLUMN procedure_notes TEXT",
-            "ALTER TABLE anesthetic_records ADD COLUMN sample_collection TEXT",
-            "ALTER TABLE anesthetic_records ADD COLUMN postop_medications TEXT",
+        _RESTORE_MIGRATIONS = [
+            ("monitoring_entries", "fluid_rate",         "FLOAT"),
+            ("anesthetic_records", "procedure_notes",    "TEXT"),
+            ("anesthetic_records", "sample_collection",  "TEXT"),
+            ("anesthetic_records", "postop_medications", "TEXT"),
+            ("surgeon_duties",     "repeat_group_id",    "VARCHAR(36)"),
+            ("patients",           "owner_phone",        "VARCHAR(20)"),
         ]
-        for sql in migrations:
+        with engine.connect() as conn:
+            for table, col, col_type in _RESTORE_MIGRATIONS:
+                try:
+                    result = conn.execute(text(f"PRAGMA table_info({table})"))
+                    if col not in {r[1] for r in result.fetchall()}:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                        conn.commit()
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
             try:
-                mig_db.execute(text(sql))
-                mig_db.commit()
+                conn.execute(text("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'"))
+                conn.execute(text("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')"))
+                conn.commit()
             except Exception:
-                mig_db.rollback()
-        try:
-            mig_db.execute(text("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'"))
-            mig_db.execute(text("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')"))
-            mig_db.commit()
-        except Exception:
-            mig_db.rollback()
-        mig_db.close()
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
     except Exception:
         pass
 
