@@ -1,9 +1,10 @@
 import os
 import socket
+import sqlite3 as _sqlite3
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
-from .database import engine, Base
+from .database import engine, Base, DB_PATH, SQLALCHEMY_DATABASE_URL
 from . import models
 from .auth import get_password_hash
 from .database import SessionLocal
@@ -50,40 +51,41 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.on_event("startup")
 async def run_migrations():
-    # Use raw DBAPI connection to avoid SQLAlchemy transaction interference with DDL
-    raw = engine.raw_connection()
+    # Use Python's native sqlite3 module — fully bypasses SQLAlchemy transaction management
+    if not SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+        return  # Skip for PostgreSQL / other databases
+
+    conn = _sqlite3.connect(DB_PATH)
+    conn.isolation_level = None  # autocommit — each statement commits immediately
+    cur = conn.cursor()
+
+    column_migrations = [
+        ("monitoring_entries",  "fluid_rate",        "FLOAT"),
+        ("anesthetic_records",  "procedure_notes",   "TEXT"),
+        ("anesthetic_records",  "sample_collection", "TEXT"),
+        ("anesthetic_records",  "postop_medications","TEXT"),
+        ("surgeon_duties",      "repeat_group_id",   "VARCHAR(36)"),
+        ("patients",            "owner_phone",       "VARCHAR(20)"),
+    ]
+
+    for table, col, col_type in column_migrations:
+        cur.execute(f"PRAGMA table_info({table})")
+        existing = {row[1] for row in cur.fetchall()}
+        if col not in existing:
+            try:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+                print(f"✓ Migration: {table}.{col}")
+            except Exception as e:
+                print(f"✗ Migration error ({table}.{col}): {e}")
+
+    # Status normalisation
     try:
-        cur = raw.cursor()
+        cur.execute("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'")
+        cur.execute("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')")
+    except Exception:
+        pass
 
-        column_migrations = [
-            ("monitoring_entries",  "fluid_rate",        "FLOAT"),
-            ("anesthetic_records",  "procedure_notes",   "TEXT"),
-            ("anesthetic_records",  "sample_collection", "TEXT"),
-            ("anesthetic_records",  "postop_medications","TEXT"),
-            ("surgeon_duties",      "repeat_group_id",   "VARCHAR(36)"),
-            ("patients",            "owner_phone",       "VARCHAR(20)"),
-        ]
-
-        for table, col, col_type in column_migrations:
-            cur.execute(f"PRAGMA table_info({table})")
-            existing = {row[1] for row in cur.fetchall()}
-            if col not in existing:
-                try:
-                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
-                    raw.commit()
-                    print(f"✓ Migration: {table}.{col}")
-                except Exception as e:
-                    print(f"✗ Migration error ({table}.{col}): {e}")
-
-        # Status normalisation
-        try:
-            cur.execute("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'")
-            cur.execute("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')")
-            raw.commit()
-        except Exception:
-            pass
-    finally:
-        raw.close()
+    conn.close()
 
 
 @app.on_event("startup")
