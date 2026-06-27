@@ -50,45 +50,40 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.on_event("startup")
 async def run_migrations():
-    from sqlalchemy import text
-
-    # Use direct engine connection with explicit checks to avoid transaction issues
-    with engine.connect() as conn:
-        def col_exists(table: str, col: str) -> bool:
-            rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
-            return any(r[1] == col for r in rows)
-
-        def tbl_exists(table: str) -> bool:
-            r = conn.execute(text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=:t"
-            ), {"t": table}).fetchone()
-            return r is not None
+    # Use raw DBAPI connection to avoid SQLAlchemy transaction interference with DDL
+    raw = engine.raw_connection()
+    try:
+        cur = raw.cursor()
 
         column_migrations = [
-            ("monitoring_entries",  "fluid_rate",       "FLOAT"),
-            ("anesthetic_records",  "procedure_notes",  "TEXT"),
-            ("anesthetic_records",  "sample_collection","TEXT"),
+            ("monitoring_entries",  "fluid_rate",        "FLOAT"),
+            ("anesthetic_records",  "procedure_notes",   "TEXT"),
+            ("anesthetic_records",  "sample_collection", "TEXT"),
             ("anesthetic_records",  "postop_medications","TEXT"),
-            ("surgeon_duties",      "repeat_group_id",  "VARCHAR(36)"),
-            ("patients",            "owner_phone",      "VARCHAR(20)"),
+            ("surgeon_duties",      "repeat_group_id",   "VARCHAR(36)"),
+            ("patients",            "owner_phone",       "VARCHAR(20)"),
         ]
 
         for table, col, col_type in column_migrations:
-            if tbl_exists(table) and not col_exists(table, col):
+            cur.execute(f"PRAGMA table_info({table})")
+            existing = {row[1] for row in cur.fetchall()}
+            if col not in existing:
                 try:
-                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
-                    conn.commit()
-                    print(f"✓ Migration: added {table}.{col}")
+                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+                    raw.commit()
+                    print(f"✓ Migration: {table}.{col}")
                 except Exception as e:
-                    print(f"✗ Migration warning ({table}.{col}): {e}")
+                    print(f"✗ Migration error ({table}.{col}): {e}")
 
-        # Migrate old status values
+        # Status normalisation
         try:
-            conn.execute(text("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'"))
-            conn.execute(text("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')"))
-            conn.commit()
+            cur.execute("UPDATE anesthetic_records SET status='waiting' WHERE status='draft'")
+            cur.execute("UPDATE anesthetic_records SET status='complete' WHERE status IN ('completed','exported')")
+            raw.commit()
         except Exception:
             pass
+    finally:
+        raw.close()
 
 
 @app.on_event("startup")

@@ -69,7 +69,7 @@ class PatientOut(BaseModel):
     age: Optional[str]
     weight: Optional[float]
     owner_name: Optional[str]
-    owner_phone: Optional[str]
+    owner_phone: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
