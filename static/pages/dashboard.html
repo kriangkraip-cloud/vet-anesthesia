@@ -1239,10 +1239,9 @@ function buildSummaryHTML(rec, patientName, hn, species) {
     ${row("Standing Time", fmtDT(rec.standing_time) ? v(fmtDT(rec.standing_time)) : nr)}
     ${row("Recovery Quality", v(rec.recovery_quality))}
     ${row("Recovery Complications", v(rec.recovery_complications))}
-    ${row("Reversal Drugs", drugTable(revDrugs))}
-    ${row("Postop Pain Management", v(rec.postop_pain_management))}
+    ${row("Postoperative Pain Management / Sedative Given During Recovery / Reversal Drugs", v(rec.postop_pain_management))}
     ${row("Postop Monitoring Plan", v(rec.postop_monitoring))}
-    ${row("Last Recorded Temperature", lastTemp ? lastTemp + " °C" : nr)}
+    ${row("Post Operative Temperature", rec.postop_temp ? rec.postop_temp + " °C" : (lastTemp ? lastTemp + " °C (from monitoring)" : nr))}
     ${row("Next Feeding", v(rec.next_feeding))}
     ${row("Postoperative Plan", v(rec.postop_plan))}
     ${row("Final Note", v(rec.final_note))}

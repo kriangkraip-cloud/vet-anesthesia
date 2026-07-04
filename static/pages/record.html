@@ -755,6 +755,10 @@
             </div>
           </div>
           <div class="form-group">
+            <label>Post Operative Temperature (°C)</label>
+            <input type="number" id="postop_temp" step="0.1" placeholder="°C">
+          </div>
+          <div class="form-group">
             <label>Recovery Quality</label>
             <select id="recovery_quality">
               <option value="">Select…</option>
@@ -1029,7 +1033,7 @@ const RECORD_FIELDS = [
   "induction_complication","premed_quality","induction_quality",
   "procedure_notes","sample_collection","postop_medications",
   "recovery_quality","recovery_complications","postop_pain_management",
-  "postop_monitoring","final_note","postop_plan","next_feeding",
+  "postop_monitoring","final_note","postop_plan","next_feeding","postop_temp",
 ];
 const DATETIME_FIELDS = ["anesthesia_start","anesthesia_end","surgery_start","surgery_end",
                           "extubation_time","sternal_time","standing_time"];

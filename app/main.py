@@ -43,6 +43,7 @@ _COLUMN_MIGRATIONS = [
     ("monitoring_entries",  "pulse_rate",        "FLOAT"),
     ("anesthetic_records",  "next_feeding",      "TEXT"),
     ("anesthetic_records",  "postop_plan",       "TEXT"),
+    ("anesthetic_records",  "postop_temp",       "FLOAT"),
 ]
 
 def _run_column_migrations():

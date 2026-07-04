@@ -111,6 +111,7 @@ class AnestheticRecord(Base):
     final_note = Column(Text)
     next_feeding = Column(Text)
     postop_plan = Column(Text)
+    postop_temp = Column(Float)
 
     # Audit
     created_at = Column(DateTime, default=datetime.utcnow)

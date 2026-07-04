@@ -279,6 +279,7 @@ class RecordCreate(BaseModel):
     final_note: Optional[str] = None
     next_feeding: Optional[str] = None
     postop_plan: Optional[str] = None
+    postop_temp: Optional[float] = None
 
 
 class RecordUpdate(RecordCreate):
@@ -339,6 +340,7 @@ class RecordOut(BaseModel):
     final_note: Optional[str]
     next_feeding: Optional[str] = None
     postop_plan: Optional[str] = None
+    postop_temp: Optional[float] = None
     created_at: datetime
     updated_at: datetime
     drug_entries: List[DrugEntryOut] = []
