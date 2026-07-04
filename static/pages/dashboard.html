@@ -406,6 +406,8 @@
 <script>
 if (!requireAuth()) void 0;
 
+const _exportedIds = new Set(JSON.parse(localStorage.getItem("exported_pdf_ids") || "[]"));
+
 const user = getUser();
 if (user) document.getElementById("user-label").textContent = `${user.full_name || user.username} (${user.role})`;
 
@@ -687,7 +689,7 @@ async function loadRecords() {
           <div class="flex gap-1" style="flex-wrap:wrap">
             <a href="/record?id=${r.id}" class="btn btn-primary btn-sm">Open</a>
             <a href="/patient?id=${r.patient_id}" class="btn btn-outline btn-sm" title="Edit patient information">✏ Edit</a>
-            <button class="btn btn-outline btn-sm" onclick="exportPDF(${r.id})" title="Export PDF">PDF</button>
+            <button id="pdf-btn-${r.id}" class="btn btn-sm ${_exportedIds.has(r.id) ? 'btn-outline' : 'btn-success'}" onclick="exportPDF(${r.id})" title="Export PDF">PDF</button>
             <button class="btn btn-outline btn-sm" onclick="showSummary(${r.id},'${(r.patient_name||"").replace(/'/g,"\\'")}','${r.hn||""}','${r.species||""}')" title="Quick summary" style="color:var(--primary);border-color:var(--primary)">∑ Summary</button>
             <button class="btn btn-danger btn-sm" onclick="deleteRecord(${r.id},'${(r.patient_name||r.hn||"").replace(/'/g,"\\'")}','${r.record_date||""}')" title="Delete this anesthetic record">🗑</button>
           </div>
@@ -705,6 +707,10 @@ async function exportPDF(id) {
     const blob = await API.exportPDF(id);
     downloadBlob(blob, `anesthesia_${id}.pdf`);
     toast("PDF downloaded!", "success");
+    _exportedIds.add(id);
+    localStorage.setItem("exported_pdf_ids", JSON.stringify([..._exportedIds]));
+    const btn = document.getElementById(`pdf-btn-${id}`);
+    if (btn) { btn.classList.remove("btn-success"); btn.classList.add("btn-outline"); }
   } catch (err) { toast(err.message, "error"); }
 }
 
