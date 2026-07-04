@@ -109,6 +109,8 @@ class AnestheticRecord(Base):
     postop_pain_management = Column(Text)
     postop_monitoring = Column(Text)
     final_note = Column(Text)
+    next_feeding = Column(Text)
+    postop_plan = Column(Text)
 
     # Audit
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -185,6 +187,7 @@ class MonitoringEntry(Base):
     body_temp = Column(Float)
     o2_flow = Column(Float)
     fluid_rate = Column(Float)
+    pulse_rate = Column(Float)
     pulse = Column(String(50))
     ventilation_mode = Column(String(30))  # spontaneous, assisted, mechanical
     breathing_pattern = Column(String(100))

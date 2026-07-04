@@ -120,6 +120,7 @@ class MonitoringEntryCreate(BaseModel):
     body_temp: Optional[float] = None
     o2_flow: Optional[float] = None
     fluid_rate: Optional[float] = None
+    pulse_rate: Optional[float] = None
     pulse: Optional[str] = None
     ventilation_mode: Optional[str] = None
     breathing_pattern: Optional[str] = None
@@ -276,6 +277,8 @@ class RecordCreate(BaseModel):
     postop_pain_management: Optional[str] = None
     postop_monitoring: Optional[str] = None
     final_note: Optional[str] = None
+    next_feeding: Optional[str] = None
+    postop_plan: Optional[str] = None
 
 
 class RecordUpdate(RecordCreate):
@@ -334,6 +337,8 @@ class RecordOut(BaseModel):
     postop_pain_management: Optional[str]
     postop_monitoring: Optional[str]
     final_note: Optional[str]
+    next_feeding: Optional[str] = None
+    postop_plan: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     drug_entries: List[DrugEntryOut] = []

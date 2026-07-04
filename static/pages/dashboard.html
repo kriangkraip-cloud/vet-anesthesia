@@ -63,7 +63,7 @@
           oninput="searchPatients(this.value)"
           autocomplete="off"
           style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text)">
-        <div id="patient-search-results" style="display:none;position:absolute;left:0.75rem;right:0.75rem;top:calc(100% - 0.75rem);background:var(--card-bg);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:200;max-height:260px;overflow-y:auto"></div>
+        <div id="patient-search-results" style="display:none;position:absolute;left:0.75rem;right:0.75rem;top:calc(100% - 0.75rem);background:#fff;color:#111;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.18);z-index:200;max-height:260px;overflow-y:auto"></div>
       </div>
     </div>
 
@@ -345,6 +345,22 @@
 </div>
 
 <!-- Users Modal -->
+<!-- Summary Modal -->
+<div class="modal-overlay hidden" id="summary-modal">
+  <div class="modal" style="max-width:680px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header" style="flex-shrink:0">
+      <h3 id="summary-modal-title">📋 Anesthetic Summary</h3>
+      <div style="display:flex;gap:0.5rem">
+        <button class="btn btn-outline btn-sm" onclick="printSummary()">🖨 Print</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('summary-modal')">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" id="summary-content" style="overflow-y:auto;flex:1;font-size:0.87rem">
+      <div style="text-align:center;padding:2rem;color:var(--text-muted)">Loading…</div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="users-modal">
   <div class="modal" style="max-width:700px">
     <div class="modal-header">
@@ -672,6 +688,7 @@ async function loadRecords() {
             <a href="/record?id=${r.id}" class="btn btn-primary btn-sm">Open</a>
             <a href="/patient?id=${r.patient_id}" class="btn btn-outline btn-sm" title="Edit patient information">✏ Edit</a>
             <button class="btn btn-outline btn-sm" onclick="exportPDF(${r.id})" title="Export PDF">PDF</button>
+            <button class="btn btn-outline btn-sm" onclick="showSummary(${r.id},'${(r.patient_name||"").replace(/'/g,"\\'")}','${r.hn||""}','${r.species||""}')" title="Quick summary" style="color:var(--primary);border-color:var(--primary)">∑ Summary</button>
             <button class="btn btn-danger btn-sm" onclick="deleteRecord(${r.id},'${(r.patient_name||r.hn||"").replace(/'/g,"\\'")}','${r.record_date||""}')" title="Delete this anesthetic record">🗑</button>
           </div>
         </td>
@@ -841,7 +858,7 @@ function renderDutyTable() {
           <div style="font-weight:600;line-height:1.3">${duty.surgeon_name}</div>
           ${timeStr ? `<div style="color:var(--text-muted);font-size:0.7rem">${timeStr}</div>` : ""}
           ${duty.duty_type ? `<div style="color:var(--text-muted);font-size:0.7rem">${duty.duty_type}</div>` : ""}
-          ${duty.notes ? `<div style="color:var(--text);font-size:0.68rem;margin-top:0.15rem;white-space:pre-wrap;word-break:break-word">${duty.notes}</div>` : ""}
+          ${duty.notes ? `<div style="font-size:0.68rem;margin-top:0.2rem;padding:0.15rem 0.3rem;background:rgba(var(--primary-rgb,14,116,144),0.08);border-left:2px solid var(--primary);border-radius:2px;white-space:pre-wrap;word-break:break-word;color:var(--text)">${duty.notes}</div>` : ""}
           ${duty.repeat_group_id ? `<div style="color:var(--primary);font-size:0.65rem">↻ Series</div>` : ""}
           <button onclick="openDutyForm(_dutyMap[${duty.id}])"
                   style="border:none;background:none;color:var(--primary);cursor:pointer;font-size:0.68rem;padding:1px 0;margin-top:1px;display:block">✏ Edit</button>
@@ -1106,6 +1123,134 @@ async function restoreBackup() {
     statusEl.style.color = "var(--danger)";
     toast(e.message, "error");
   }
+}
+
+// ── Summary Modal ───────────────────────────────────────────────────────────
+async function showSummary(recordId, patientName, hn, species) {
+  document.getElementById("summary-modal-title").textContent = `📋 Summary — ${hn} ${patientName}`;
+  document.getElementById("summary-content").innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">Loading…</div>';
+  openModal("summary-modal");
+  try {
+    const rec = await API.getRecord(recordId);
+    document.getElementById("summary-content").innerHTML = buildSummaryHTML(rec, patientName, hn, species);
+  } catch (err) {
+    document.getElementById("summary-content").innerHTML = `<p style="color:var(--danger)">Error: ${err.message}</p>`;
+  }
+}
+
+function printSummary() {
+  const content = document.getElementById("summary-content").innerHTML;
+  const w = window.open("", "_blank", "width=800,height=700");
+  w.document.write(`<html><head><title>Anesthetic Summary</title>
+    <style>body{font-family:sans-serif;font-size:13px;padding:20px}
+    h3{margin:1rem 0 0.3rem;font-size:1rem;border-bottom:1px solid #ccc;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;margin:0.4rem 0}
+    th,td{border:1px solid #ddd;padding:4px 6px;text-align:left}th{background:#f0f4f8}
+    .nr{color:#999;font-style:italic}.section{margin-bottom:1rem}</style>
+    </head><body>${content}</body></html>`);
+  w.document.close();
+  w.print();
+}
+
+function buildSummaryHTML(rec, patientName, hn, species) {
+  const nr = '<span class="nr" style="color:var(--text-muted);font-style:italic">Not recorded</span>';
+  const v = val => (val !== null && val !== undefined && val !== "") ? val : nr;
+  const fmtDT = iso => iso ? new Date(iso).toLocaleString("en-GB", {day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : null;
+  const fmtT  = iso => iso ? new Date(iso).toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit"}) : null;
+
+  const premedDrugs = (rec.drug_entries || []).filter(d => d.entry_type === "premedication");
+  const inductDrugs = (rec.drug_entries || []).filter(d => d.entry_type === "induction");
+  const localDrugs  = (rec.drug_entries || []).filter(d => d.entry_type === "local_anesthesia");
+  const criDrugs    = (rec.drug_entries || []).filter(d => d.entry_type === "cri");
+  const revDrugs    = (rec.drug_entries || []).filter(d => d.entry_type === "reversal");
+  const emergEvents = rec.emergency_events || [];
+  const monEntries  = rec.monitoring_entries || [];
+  const lastTemp    = [...monEntries].reverse().find(m => m.body_temp)?.body_temp;
+
+  const drugTable = drugs => {
+    if (!drugs.length) return nr;
+    return `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin:0.3rem 0">
+      <thead><tr style="background:var(--bg-secondary,#f0f4f8)">
+        <th style="padding:3px 6px;border:1px solid var(--border,#ddd)">Drug</th>
+        <th style="padding:3px 6px;border:1px solid var(--border,#ddd)">Dose</th>
+        <th style="padding:3px 6px;border:1px solid var(--border,#ddd)">Route</th>
+        <th style="padding:3px 6px;border:1px solid var(--border,#ddd)">Time</th>
+      </tr></thead>
+      <tbody>${drugs.map(d => `<tr>
+        <td style="padding:3px 6px;border:1px solid var(--border,#ddd)">${d.drug_name || "—"}</td>
+        <td style="padding:3px 6px;border:1px solid var(--border,#ddd)">${d.dose ? d.dose + " " + (d.dose_unit||"") : "—"}</td>
+        <td style="padding:3px 6px;border:1px solid var(--border,#ddd)">${d.route || "—"}</td>
+        <td style="padding:3px 6px;border:1px solid var(--border,#ddd)">${d.time ? fmtT(d.time) : "—"}</td>
+      </tr>`).join("")}</tbody></table>`;
+  };
+
+  const row = (label, val) => `<tr>
+    <td style="padding:4px 8px;color:var(--text-muted,#666);width:45%;border-bottom:1px solid var(--border,#eee);font-weight:500">${label}</td>
+    <td style="padding:4px 8px;border-bottom:1px solid var(--border,#eee)">${val}</td>
+  </tr>`;
+
+  const section = (icon, title, content) => `
+    <div class="section" style="margin-bottom:1.2rem">
+      <h3 style="margin:0 0 0.5rem;font-size:0.92rem;font-weight:700;color:var(--primary,#0e7490);border-bottom:2px solid var(--primary,#0e7490);padding-bottom:4px">${icon} ${title}</h3>
+      ${content}
+    </div>`;
+
+  const caseInfo = `<table style="width:100%;border-collapse:collapse">
+    ${row("HN", v(hn))}
+    ${row("Patient", v(patientName) + (species ? ` <span style="color:var(--text-muted,#666)">(${species})</span>` : ""))}
+    ${row("Body Weight", rec.weight_at_record ? rec.weight_at_record + " kg" : nr)}
+    ${row("ASA Status", v(rec.asa_status))}
+    ${row("Diagnosis", v(rec.diagnosis))}
+    ${row("Procedure", v(rec.surgical_procedure))}
+    ${row("Surgeon", v(rec.surgeon))}
+    ${row("Anesthesiologist", v(rec.anesthesiologist))}
+    ${row("Anesthesia Start", fmtDT(rec.anesthesia_start) ? v(fmtDT(rec.anesthesia_start)) : nr)}
+    ${row("Surgery Start → End", (fmtT(rec.surgery_start) && fmtT(rec.surgery_end)) ? fmtT(rec.surgery_start) + " → " + fmtT(rec.surgery_end) : nr)}
+    ${row("Extubation Time", fmtDT(rec.extubation_time) ? v(fmtDT(rec.extubation_time)) : nr)}
+  </table>`;
+
+  const emergTable = emergEvents.length ? `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin:0.3rem 0">
+    <thead><tr style="background:var(--bg-secondary,#f0f4f8)">
+      <th style="padding:3px 6px;border:1px solid var(--border,#ddd)">Time</th>
+      <th style="padding:3px 6px;border:1px solid var(--border,#ddd)">Event</th>
+      <th style="padding:3px 6px;border:1px solid var(--border,#ddd)">Drug</th>
+      <th style="padding:3px 6px;border:1px solid var(--border,#ddd)">Response</th>
+    </tr></thead>
+    <tbody>${emergEvents.map(e => `<tr>
+      <td style="padding:3px 6px;border:1px solid var(--border,#ddd)">${e.time ? fmtT(e.time) : "—"}</td>
+      <td style="padding:3px 6px;border:1px solid var(--border,#ddd)">${e.event_type || "—"}</td>
+      <td style="padding:3px 6px;border:1px solid var(--border,#ddd)">${e.drug_name || "—"}</td>
+      <td style="padding:3px 6px;border:1px solid var(--border,#ddd)">${e.response || "—"}</td>
+    </tr>`).join("")}</tbody></table>` : nr;
+
+  const anesInfo = `<table style="width:100%;border-collapse:collapse">
+    ${row("Premedication", drugTable(premedDrugs))}
+    ${row("Induction", drugTable(inductDrugs))}
+    ${row("Local Anesthesia", drugTable(localDrugs))}
+    ${row("CRI", drugTable(criDrugs))}
+    ${row("Induction Complication", v(rec.induction_complication))}
+    ${row("Sample Collection", v(rec.sample_collection))}
+    ${row("Intraoperative Complication", v(rec.postop_medications))}
+    ${row("Emergency Treatments", emergTable)}
+  </table>`;
+
+  const recovInfo = `<table style="width:100%;border-collapse:collapse">
+    ${row("Sternal Time", fmtDT(rec.sternal_time) ? v(fmtDT(rec.sternal_time)) : nr)}
+    ${row("Standing Time", fmtDT(rec.standing_time) ? v(fmtDT(rec.standing_time)) : nr)}
+    ${row("Recovery Quality", v(rec.recovery_quality))}
+    ${row("Recovery Complications", v(rec.recovery_complications))}
+    ${row("Reversal Drugs", drugTable(revDrugs))}
+    ${row("Postop Pain Management", v(rec.postop_pain_management))}
+    ${row("Postop Monitoring Plan", v(rec.postop_monitoring))}
+    ${row("Last Recorded Temperature", lastTemp ? lastTemp + " °C" : nr)}
+    ${row("Next Feeding", v(rec.next_feeding))}
+    ${row("Postoperative Plan", v(rec.postop_plan))}
+    ${row("Final Note", v(rec.final_note))}
+  </table>`;
+
+  return section("📄","Case Information", caseInfo)
+       + section("💉","Anesthesia Summary", anesInfo)
+       + section("🛏","Recovery Summary", recovInfo);
 }
 </script>
 </body>

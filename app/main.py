@@ -40,6 +40,9 @@ _COLUMN_MIGRATIONS = [
     ("anesthetic_records",  "postop_medications","TEXT"),
     ("surgeon_duties",      "repeat_group_id",   "VARCHAR(36)"),
     ("patients",            "owner_phone",       "VARCHAR(20)"),
+    ("monitoring_entries",  "pulse_rate",        "FLOAT"),
+    ("anesthetic_records",  "next_feeding",      "TEXT"),
+    ("anesthetic_records",  "postop_plan",       "TEXT"),
 ]
 
 def _run_column_migrations():

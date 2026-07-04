@@ -475,6 +475,10 @@
               <input type="number" id="mon-hr" placeholder="bpm">
             </div>
             <div class="form-group">
+              <label>Pulse Rate (bpm)</label>
+              <input type="number" id="mon-pulse-rate" placeholder="bpm">
+            </div>
+            <div class="form-group">
               <label>RR (/min)</label>
               <input type="number" id="mon-rr" placeholder="/min">
             </div>
@@ -528,7 +532,7 @@
                 <option>Weak</option><option>Thready</option>
               </select>
             </div>
-            <div class="form-group span-2">
+            <div class="form-group">
               <label>Note</label>
               <input type="text" id="mon-note" placeholder="Any note for this timepoint…">
             </div>
@@ -580,11 +584,11 @@
         <div class="table-wrap">
           <table id="mon-table">
             <thead><tr>
-              <th>Time</th><th>Gas%</th><th>HR</th><th>RR</th><th>SpO₂</th>
+              <th>Time</th><th>Gas%</th><th>HR</th><th>PR</th><th>RR</th><th>SpO₂</th>
               <th>SBP</th><th>DBP</th><th>MAP</th><th>EtCO₂</th><th>Temp</th>
               <th>O₂</th><th>Fluid(mL/h)</th><th>Mode</th><th>Note</th><th>Del</th>
             </tr></thead>
-            <tbody id="mon-tbody"><tr><td colspan="15" style="text-align:center;padding:1rem;color:var(--text-muted)">No entries yet</td></tr></tbody>
+            <tbody id="mon-tbody"><tr><td colspan="16" style="text-align:center;padding:1rem;color:var(--text-muted)">No entries yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -793,14 +797,36 @@
         </div>
       </div>
 
-      <!-- Sample Collection + Postop Medications -->
+      <!-- Sample Collection + Intraoperative Complication + Post-op -->
       <div class="card">
-        <div class="card-header"><h2 class="card-title">🧪 Samples & Postop Medications</h2></div>
+        <div class="card-header"><h2 class="card-title">🧪 Sample &amp; Intraoperative Complication</h2></div>
         <div class="form-grid form-grid-2">
           <div class="form-group span-full"><label>Sample Collection</label>
             <textarea id="sample_collection" rows="2" placeholder="Samples collected (blood, tissue, biopsy, etc.)…"></textarea></div>
-          <div class="form-group span-full"><label>Postoperative Medications</label>
-            <textarea id="postop_medications" rows="3" placeholder="Discharge or postop medications, doses, frequency…"></textarea></div>
+          <div class="form-group span-full"><label>Intraoperative Complication</label>
+            <textarea id="postop_medications" rows="3" placeholder="Intraoperative complications, interventions…"></textarea></div>
+          <!-- Next Feeding -->
+          <div class="form-group span-full">
+            <label>Next Feeding</label>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+              <select id="next-feeding-timing" onchange="updateNextFeeding()" style="width:180px">
+                <option value="">— Select timing —</option>
+                <option value="immediately">Immediately</option>
+                <option value="next_meal">Next meal</option>
+                <option value="feed_after">Feed after…</option>
+              </select>
+              <span id="next-feeding-hr-wrap" style="display:none;align-items:center;gap:0.3rem">
+                <input type="number" id="next-feeding-hr" min="1" max="72" placeholder="hr" style="width:70px" oninput="updateNextFeeding()">
+                <span style="font-size:0.85rem">hr</span>
+              </span>
+              <input type="text" id="next-feeding-type" placeholder="Feed type (e.g. wet food)" style="flex:1;min-width:140px" oninput="updateNextFeeding()">
+              <input type="text" id="next-feeding-vol" placeholder="Volume (e.g. 50 mL)" style="width:130px" oninput="updateNextFeeding()">
+            </div>
+            <input type="hidden" id="next_feeding">
+          </div>
+          <!-- Post-op Plan -->
+          <div class="form-group span-full"><label>Postoperative Plan</label>
+            <textarea id="postop_plan" rows="3" placeholder="Suture removal, wound care schedule, monitoring plan, follow-up…"></textarea></div>
         </div>
       </div>
 
@@ -1003,7 +1029,7 @@ const RECORD_FIELDS = [
   "induction_complication","premed_quality","induction_quality",
   "procedure_notes","sample_collection","postop_medications",
   "recovery_quality","recovery_complications","postop_pain_management",
-  "postop_monitoring","final_note",
+  "postop_monitoring","final_note","postop_plan","next_feeding",
 ];
 const DATETIME_FIELDS = ["anesthesia_start","anesthesia_end","surgery_start","surgery_end",
                           "extubation_time","sternal_time","standing_time"];
@@ -1017,6 +1043,25 @@ function populateFields() {
     const el = document.getElementById(f);
     if (el && record[f]) el.value = isoToLocalDT(record[f]);
   });
+  // Restore Next Feeding UI from stored value
+  if (record.next_feeding) {
+    const nf = record.next_feeding;
+    document.getElementById("next_feeding").value = nf;
+    if (nf.startsWith("Immediately")) {
+      document.getElementById("next-feeding-timing").value = "immediately";
+    } else if (nf.startsWith("Next meal")) {
+      document.getElementById("next-feeding-timing").value = "next_meal";
+    } else if (nf.startsWith("Feed after")) {
+      document.getElementById("next-feeding-timing").value = "feed_after";
+      document.getElementById("next-feeding-hr-wrap").style.display = "inline-flex";
+      const m = nf.match(/Feed after (\d+)/);
+      if (m) document.getElementById("next-feeding-hr").value = m[1];
+    }
+    const tm = nf.match(/Type: ([^|]+)/);
+    if (tm) document.getElementById("next-feeding-type").value = tm[1].trim();
+    const vm = nf.match(/Volume: ([^|]+)/);
+    if (vm) document.getElementById("next-feeding-vol").value = vm[1].trim();
+  }
   // Update anesthesia start display
   if (record.anesthesia_start) {
     const el = document.getElementById("anes-start-display");
@@ -1034,6 +1079,24 @@ async function populateUsers() {
     const dl = document.getElementById("user-dl");
     users.forEach(u => { const o = document.createElement("option"); o.value = u.full_name || u.username; dl.appendChild(o); });
   } catch {}
+}
+
+function updateNextFeeding() {
+  const timing = document.getElementById("next-feeding-timing").value;
+  document.getElementById("next-feeding-hr-wrap").style.display = timing === "feed_after" ? "inline-flex" : "none";
+  const parts = [];
+  if (timing === "immediately") parts.push("Immediately");
+  else if (timing === "next_meal") parts.push("Next meal");
+  else if (timing === "feed_after") {
+    const hr = document.getElementById("next-feeding-hr").value;
+    parts.push("Feed after " + (hr || "?") + " hr");
+  }
+  const type = document.getElementById("next-feeding-type").value.trim();
+  const vol = document.getElementById("next-feeding-vol").value.trim();
+  if (type) parts.push("Type: " + type);
+  if (vol) parts.push("Volume: " + vol);
+  document.getElementById("next_feeding").value = parts.join(" | ");
+  debounceSave();
 }
 
 // ── Status update ──────────────────────────────────────────
@@ -1507,6 +1570,7 @@ async function addMonEntry() {
     time: localDTtoISO(time),
     gas_percent: parseFloat(document.getElementById("mon-gas").value) || null,
     hr: parseFloat(document.getElementById("mon-hr").value) || null,
+    pulse_rate: parseFloat(document.getElementById("mon-pulse-rate").value) || null,
     rr: parseFloat(document.getElementById("mon-rr").value) || null,
     spo2: parseFloat(document.getElementById("mon-spo2").value) || null,
     systolic_bp: parseFloat(document.getElementById("mon-sbp").value) || null,
@@ -1533,7 +1597,7 @@ async function addMonEntry() {
       if (rateEl && !rateEl.value) rateEl.value = saved.fluid_rate;
     }
     recalcFluidTotal();
-    ["mon-gas","mon-hr","mon-rr","mon-spo2","mon-sbp","mon-dbp","mon-map","mon-etco2","mon-temp","mon-o2","mon-fluid-rate","mon-note"].forEach(id => {
+    ["mon-gas","mon-hr","mon-pulse-rate","mon-rr","mon-spo2","mon-sbp","mon-dbp","mon-map","mon-etco2","mon-temp","mon-o2","mon-fluid-rate","mon-note"].forEach(id => {
       document.getElementById(id).value = "";
     });
     document.getElementById("mon-vent").value = "";
@@ -1573,6 +1637,7 @@ function renderMonTable() {
       <td style="white-space:nowrap">${formatDT(m.time)}</td>
       <td>${m.gas_percent ?? ""}</td>
       <td>${m.hr ?? ""}</td>
+      <td>${m.pulse_rate ?? ""}</td>
       <td>${m.rr ?? ""}</td>
       <td style="color:${m.spo2 && m.spo2 < 95 ? "var(--danger)" : "inherit"}">${m.spo2 ?? ""}</td>
       <td>${m.systolic_bp ?? ""}</td>
