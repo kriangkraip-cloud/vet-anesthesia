@@ -468,18 +468,18 @@ function statusBadge(s) {
 }
 
 // ── Mini Calendar ──────────────────────────────────────────
-let calYear = new Date().getFullYear();
-let calMonth = new Date().getMonth();
-let calSelected = new Date().toISOString().slice(0,10);
+let calYear = parseInt(_localISO(new Date()).slice(0, 4));
+let calMonth = parseInt(_localISO(new Date()).slice(5, 7)) - 1;
+let calSelected = _localISO(new Date());
 
 function calNav(dir) { calMonth += dir; if (calMonth > 11) { calMonth = 0; calYear++; } else if (calMonth < 0) { calMonth = 11; calYear--; } renderCal(); }
-function calGoToday() { const t = new Date(); calYear = t.getFullYear(); calMonth = t.getMonth(); calSelected = t.toISOString().slice(0,10); renderCal(); loadSchedule(); }
+function calGoToday() { const iso = _localISO(new Date()); calYear = parseInt(iso.slice(0,4)); calMonth = parseInt(iso.slice(5,7))-1; calSelected = iso; renderCal(); loadSchedule(); }
 
 function renderCal() {
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   document.getElementById("cal-title").textContent = `${months[calMonth]} ${calYear}`;
   const grid = document.getElementById("cal-grid");
-  const today = new Date().toISOString().slice(0,10);
+  const today = _localISO(new Date());
   const days = ["Su","Mo","Tu","We","Th","Fr","Sa"];
   let html = days.map(d => `<div style="font-weight:600;color:var(--text-muted);padding:2px">${d}</div>`).join("");
   const first = new Date(calYear, calMonth, 1).getDay();
@@ -628,7 +628,7 @@ async function loadRecords() {
   const statusFilter = document.getElementById("status-filter").value;
   const dateFrom = document.getElementById("date-from").value;
   const dateTo = document.getElementById("date-to").value;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = _localISO(new Date());
 
   try {
     // Always load all records so stats reflect today regardless of date filter
@@ -681,7 +681,7 @@ async function loadRecords() {
         <td data-label="Species">${r.species || "—"}</td>
         <td data-label="Anesthesiologist">${r.anesthesiologist || "—"}</td>
         <td data-label="Surgeon">${r.surgeon || "—"}</td>
-        <td data-label="Date">${r.record_date ? new Date(r.record_date).toLocaleDateString("en-GB") : "—"}</td>
+        <td data-label="Date">${r.record_date ? new Date(r.record_date).toLocaleDateString("en-GB", { timeZone: "Asia/Bangkok" }) : "—"}</td>
         <td data-label="Procedure" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
             title="${r.surgical_procedure || ""}">${r.surgical_procedure || "—"}</td>
         <td data-label="Status">${statusBadge(r.status)}</td>
@@ -715,7 +715,7 @@ async function exportPDF(id) {
 }
 
 async function deleteRecord(recordId, patientName, recordDate) {
-  const dateStr = recordDate ? ` (${new Date(recordDate).toLocaleDateString("en-GB")})` : "";
+  const dateStr = recordDate ? ` (${new Date(recordDate).toLocaleDateString("en-GB", { timeZone: "Asia/Bangkok" })})` : "";
   const confirmed = confirm(
     `Are you sure you want to delete this anesthetic record for "${patientName}"${dateStr}?\n\nThe patient information will not be deleted.\n\nThis action cannot be undone.`
   );
@@ -773,9 +773,10 @@ async function deleteUser(id, username) {
 
 // ── Surgeon Duty Schedule ─────────────────────────────────
 
-// Use local date parts to avoid UTC timezone shift (e.g. UTC+7 => toISOString gives yesterday)
 function _localISO(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  // Always uses Bangkok time (UTC+7) regardless of browser timezone
+  const s = d.toLocaleString("sv-SE", { timeZone: "Asia/Bangkok" });
+  return s.slice(0, 10);
 }
 
 function _sunWeekBounds(anchor) {
@@ -1084,7 +1085,7 @@ async function loadBackupInfo() {
     document.getElementById("backup-info-box").innerHTML =
       `<strong>Database file:</strong> ${info.db_path}<br>` +
       `<strong>Size:</strong> ${info.size_kb} KB &nbsp;|&nbsp; ` +
-      `<strong>Last modified:</strong> ${info.last_modified ? new Date(info.last_modified).toLocaleString() : "—"}`;
+      `<strong>Last modified:</strong> ${info.last_modified ? new Date(info.last_modified + "Z").toLocaleString("en-GB", { timeZone: "Asia/Bangkok", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}`;
   } catch (e) {
     document.getElementById("backup-info-box").textContent = "Could not load database info.";
   }
@@ -1094,7 +1095,7 @@ async function downloadBackup() {
   try {
     toast("Preparing backup…", "info");
     const blob = await apiFetch("/api/backup/download");
-    const ts = new Date().toISOString().slice(0,10);
+    const ts = _localISO(new Date());
     downloadBlob(blob, `vetanesthesia_backup_${ts}.db`);
     toast("Backup downloaded!", "success");
   } catch (e) { toast(e.message, "error"); }
@@ -1161,8 +1162,8 @@ function printSummary() {
 function buildSummaryHTML(rec, patientName, hn, species) {
   const nr = '<span class="nr" style="color:var(--text-muted);font-style:italic">Not recorded</span>';
   const v = val => (val !== null && val !== undefined && val !== "") ? val : nr;
-  const fmtDT = iso => iso ? new Date(iso).toLocaleString("en-GB", {day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : null;
-  const fmtT  = iso => iso ? new Date(iso).toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit"}) : null;
+  const fmtDT = iso => { if (!iso) return null; const d = _asUTC(iso); return d ? d.toLocaleString("en-GB", {day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"Asia/Bangkok"}) : null; };
+  const fmtT  = iso => { if (!iso) return null; const d = _asUTC(iso); return d ? d.toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit",timeZone:"Asia/Bangkok"}) : null; };
 
   const premedDrugs = (rec.drug_entries || []).filter(d => d.entry_type === "premedication");
   const inductDrugs = (rec.drug_entries || []).filter(d => d.entry_type === "induction");

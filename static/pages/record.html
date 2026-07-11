@@ -1156,7 +1156,7 @@ async function saveRecord() {
     record = await API.updateRecord(recordId, data);
     ind.textContent = "✓ Saved";
     ind.style.color = "var(--success)";
-    document.getElementById("last-saved").textContent = "Last saved: " + new Date().toLocaleTimeString();
+    document.getElementById("last-saved").textContent = "Last saved: " + new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
   } catch (err) {
     ind.textContent = "✗ Save failed";
     ind.style.color = "var(--danger)";
@@ -1751,7 +1751,7 @@ async function markAnesthesiaStart() {
   const now = nowLocalDT();
   document.getElementById("anesthesia_start").value = now;
   const displayEl = document.getElementById("anes-start-display");
-  if (displayEl) displayEl.textContent = new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+  if (displayEl) displayEl.textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Bangkok", hour:"2-digit", minute:"2-digit" });
   timerStart.anes = Date.now();
   startTimerTick("anes");
   scheduleSave();
@@ -1770,7 +1770,7 @@ async function markSurgeryStart() {
   const now = nowLocalDT();
   document.getElementById("surgery_start").value = now;
   const displayEl = document.getElementById("surg-start-display");
-  if (displayEl) displayEl.textContent = new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+  if (displayEl) displayEl.textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Bangkok", hour:"2-digit", minute:"2-digit" });
   timerStart.surg = Date.now();
   startTimerTick("surg");
   scheduleSave();

@@ -193,14 +193,13 @@ function _asUTC(iso) {
 }
 
 function nowLocalDT() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // Returns current Bangkok time as "YYYY-MM-DDTHH:mm" for datetime-local inputs
+  const s = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Bangkok" });
+  return s.slice(0, 16).replace(" ", "T");
 }
 
 function nowLocalTime() {
-  const d = new Date();
-  return d.toTimeString().slice(0, 5);
+  return new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDT(iso) {
@@ -208,7 +207,7 @@ function formatDT(iso) {
   try {
     const d = _asUTC(iso);
     if (!d) return iso;
-    return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
   } catch { return iso; }
 }
 
@@ -217,7 +216,7 @@ function formatDate(iso) {
   try {
     const d = _asUTC(iso);
     if (!d) return iso;
-    return d.toLocaleDateString("en-GB");
+    return d.toLocaleDateString("en-GB", { timeZone: "Asia/Bangkok" });
   } catch { return iso; }
 }
 
@@ -226,14 +225,20 @@ function isoToLocalDT(iso) {
   try {
     const d = _asUTC(iso);
     if (!d) return "";
-    const pad = n => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    // Extract Bangkok time components for datetime-local input value
+    const s = d.toLocaleString("sv-SE", { timeZone: "Asia/Bangkok" });
+    return s.slice(0, 16).replace(" ", "T");
   } catch { return ""; }
 }
 
 function localDTtoISO(local) {
   if (!local) return null;
-  try { return new Date(local).toISOString(); } catch { return null; }
+  try {
+    // Input is Bangkok time (UTC+7, no DST). Parse as UTC then subtract 7 hours.
+    const d = new Date(local + "Z");
+    d.setTime(d.getTime() - 7 * 60 * 60 * 1000);
+    return d.toISOString();
+  } catch { return null; }
 }
 
 function calcDose(weight, dose, conc) {
