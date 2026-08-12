@@ -1,12 +1,13 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from fastapi.responses import FileResponse
+import mimetypes
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Response
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import date, datetime, timedelta
 from ..database import get_db
 from .. import models, auth, schemas
+from .. import storage
 
 router = APIRouter(prefix="/api", tags=["bookings"])
 
@@ -194,13 +195,6 @@ async def delete_template(
 
 # ── Procedure Images ─────────────────────────────────────────────────────────
 
-def _images_dir(record_id: int) -> str:
-    from ..database import DATA_DIR
-    d = os.path.join(DATA_DIR, "procedure_images", str(record_id))
-    os.makedirs(d, exist_ok=True)
-    return d
-
-
 @router.post("/records/{record_id}/images", response_model=schemas.ProcedureImageOut)
 async def upload_image(
     record_id: int,
@@ -217,11 +211,8 @@ async def upload_image(
         ext = ".jpg"
     unique_name = f"{uuid.uuid4().hex}{ext}"
 
-    img_dir = _images_dir(record_id)
-    dest = os.path.join(img_dir, unique_name)
     content = await file.read()
-    with open(dest, "wb") as f:
-        f.write(content)
+    storage.save_file(storage.image_key(record_id, unique_name), content)
 
     count = db.query(models.ProcedureImage).filter(models.ProcedureImage.record_id == record_id).count()
     img = models.ProcedureImage(
@@ -286,11 +277,7 @@ async def delete_image(
     ).first()
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
-    # Delete file
-    img_dir = _images_dir(record_id)
-    file_path = os.path.join(img_dir, img.filename)
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    storage.delete_file(storage.image_key(record_id, img.filename))
     db.delete(img)
     db.commit()
     return {"ok": True}
@@ -304,20 +291,19 @@ async def serve_image(
     db: Session = Depends(get_db),
 ):
     # Accept token from query string (for <img src> tags) or Authorization header
-    from ..auth import get_current_user
-    from fastapi.security import OAuth2PasswordBearer
     from jose import JWTError, jwt
     from ..auth import SECRET_KEY, ALGORITHM
     if token:
         try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         except JWTError:
             raise HTTPException(status_code=401, detail="Invalid token")
-    img_dir = _images_dir(record_id)
-    file_path = os.path.join(img_dir, filename)
-    if not os.path.exists(file_path) or not os.path.abspath(file_path).startswith(os.path.abspath(img_dir)):
+    safe_name = os.path.basename(filename)
+    content = storage.read_file(storage.image_key(record_id, safe_name))
+    if content is None:
         raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(file_path)
+    content_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    return Response(content=content, media_type=content_type)
 
 
 # ── Drug Presets ─────────────────────────────────────────────────────────────

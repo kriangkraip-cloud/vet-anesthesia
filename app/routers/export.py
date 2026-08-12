@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from datetime import datetime, timedelta
 from ..database import get_db
-from .. import models, auth
+from .. import models, auth, storage
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -53,11 +53,6 @@ def _load_record(db: Session, record_id: int) -> models.AnestheticRecord:
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     return record
-
-
-def _images_dir(record_id: int) -> str:
-    from ..database import DATA_DIR
-    return os.path.join(DATA_DIR, "procedure_images", str(record_id))
 
 
 def _to_local(dt):
@@ -536,11 +531,11 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
             elements.append(Paragraph("<b>Procedure Images:</b>", small))
             img_row = []
             for img in export_images:
-                img_path = os.path.join(_images_dir(record.id), img.filename)
-                if not os.path.exists(img_path):
+                content = storage.read_file(storage.image_key(record.id, img.filename))
+                if content is None:
                     continue
                 try:
-                    rl_img = RLImage(img_path, width=5.5*cm, height=4*cm, kind="proportional")
+                    rl_img = RLImage(io.BytesIO(content), width=5.5*cm, height=4*cm, kind="proportional")
                     caption = Paragraph(img.label or img.original_name or "", small)
                     img_row.append([rl_img, caption])
                 except Exception:
@@ -782,11 +777,11 @@ def _build_docx(record: models.AnestheticRecord, recorder_name: str = "") -> io.
         if export_imgs:
             doc.add_paragraph("Procedure Images:").runs[0].bold = True
             for img in export_imgs:
-                img_path = os.path.join(_images_dir(record.id), img.filename)
-                if not os.path.exists(img_path):
+                content = storage.read_file(storage.image_key(record.id, img.filename))
+                if content is None:
                     continue
                 try:
-                    doc.add_picture(img_path, width=Cm(7))
+                    doc.add_picture(io.BytesIO(content), width=Cm(7))
                     if img.label or img.original_name:
                         cap = doc.add_paragraph(img.label or img.original_name or "")
                         cap.paragraph_format.space_after = Pt(6)

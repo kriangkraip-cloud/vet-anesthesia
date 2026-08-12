@@ -5,7 +5,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
 from .. import models, auth
-from ..database import DB_PATH, engine
+from ..database import DB_PATH, engine, SQLALCHEMY_DATABASE_URL
+
+_is_sqlite = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
 
 router = APIRouter(prefix="/api/backup", tags=["backup"])
 
@@ -18,6 +20,8 @@ def _admin_only(current_user: models.User = Depends(auth.get_current_user)):
 
 @router.get("/download")
 async def download_backup(_: models.User = Depends(_admin_only)):
+    if not _is_sqlite:
+        raise HTTPException(status_code=400, detail="Database is on PostgreSQL (Supabase) — use Supabase's built-in backups instead of this SQLite export.")
     if not os.path.exists(DB_PATH):
         raise HTTPException(status_code=404, detail="Database file not found")
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -35,6 +39,8 @@ async def restore_backup(
     file: UploadFile = File(...),
     _: models.User = Depends(_admin_only),
 ):
+    if not _is_sqlite:
+        raise HTTPException(status_code=400, detail="Database is on PostgreSQL (Supabase) — use Supabase's built-in restore instead of this SQLite import.")
     if not (file.filename or "").endswith(".db"):
         raise HTTPException(status_code=400, detail="File must be a .db backup file")
 
@@ -101,6 +107,9 @@ async def restore_backup(
 
 @router.get("/info")
 async def backup_info(_: models.User = Depends(_admin_only)):
+    if not _is_sqlite:
+        return {"db_path": "PostgreSQL (Supabase)", "size_bytes": 0, "size_kb": 0, "last_modified": None,
+                "note": "Backups are managed by Supabase — see your Supabase project dashboard."}
     size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
     mtime = os.path.getmtime(DB_PATH) if os.path.exists(DB_PATH) else 0
     return {
