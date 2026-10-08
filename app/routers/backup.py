@@ -77,6 +77,8 @@ async def restore_backup(
             ("anesthetic_records", "next_feeding",       "TEXT"),
             ("anesthetic_records", "postop_plan",        "TEXT"),
             ("anesthetic_records", "postop_temp",        "FLOAT"),
+            ("anesthetic_records", "procedure_name",     "VARCHAR(500)"),
+            ("anesthetic_records", "appointment_by",     "VARCHAR(100)"),
         ]
         with engine.connect() as conn:
             for table, col, col_type in _RESTORE_MIGRATIONS:

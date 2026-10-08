@@ -44,6 +44,7 @@ async def list_records(
                 models.AnestheticRecord.surgeon.ilike(search),
                 models.AnestheticRecord.anesthesiologist.ilike(search),
                 models.AnestheticRecord.surgical_procedure.ilike(search),
+                models.AnestheticRecord.procedure_name.ilike(search),
             )
         )
     records = query.order_by(models.AnestheticRecord.record_date.desc()).all()
@@ -61,6 +62,8 @@ def _format_record_summary(r: models.AnestheticRecord) -> dict:
         "surgeon": r.surgeon,
         "anesthesiologist": r.anesthesiologist,
         "surgical_procedure": r.surgical_procedure,
+        "procedure_name": r.procedure_name,
+        "appointment_by": r.appointment_by,
         "status": r.status,
         "anesthesia_start": r.anesthesia_start.isoformat() if r.anesthesia_start else None,
         "anesthesia_end": r.anesthesia_end.isoformat() if r.anesthesia_end else None,
@@ -127,7 +130,11 @@ async def update_record(
     record = db.query(models.AnestheticRecord).filter(models.AnestheticRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    if current_user.role == "pharmacy":
+        # Pharmacy Staff may only touch drug-related fields of the record itself
+        changes = {k: v for k, v in changes.items() if k in auth.PHARMACY_RECORD_FIELDS}
+    for field, value in changes.items():
         setattr(record, field, value)
     record.updated_by_id = current_user.id
     record.updated_at = datetime.utcnow()

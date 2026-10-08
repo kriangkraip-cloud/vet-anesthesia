@@ -7,7 +7,7 @@ from .database import engine, Base, DB_PATH, SQLALCHEMY_DATABASE_URL
 from . import models
 from .auth import get_password_hash
 from .database import SessionLocal
-from .routers import auth, users, patients, records, export, backup, bookings
+from .routers import auth, users, patients, records, export, backup, bookings, stock
 
 
 def _get_lan_ip() -> str:
@@ -44,6 +44,8 @@ _COLUMN_MIGRATIONS = [
     ("anesthetic_records",  "next_feeding",      "TEXT"),
     ("anesthetic_records",  "postop_plan",       "TEXT"),
     ("anesthetic_records",  "postop_temp",       "FLOAT"),
+    ("anesthetic_records",  "procedure_name",    "VARCHAR(500)"),
+    ("anesthetic_records",  "appointment_by",    "VARCHAR(100)"),
 ]
 
 def _run_column_migrations():
@@ -89,6 +91,7 @@ app.include_router(records.router)
 app.include_router(export.router)
 app.include_router(backup.router)
 app.include_router(bookings.router)
+app.include_router(stock.router)
 
 # Serve static files
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
@@ -275,6 +278,11 @@ async def patient_page():
 @app.get("/record")
 async def record_page():
     return FileResponse(os.path.join(STATIC_DIR, "pages", "record.html"), headers=_NO_CACHE)
+
+
+@app.get("/stock")
+async def stock_page():
+    return FileResponse(os.path.join(STATIC_DIR, "pages", "stock.html"), headers=_NO_CACHE)
 
 
 @app.get("/api/server-info")

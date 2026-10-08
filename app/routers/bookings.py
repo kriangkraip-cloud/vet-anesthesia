@@ -52,7 +52,9 @@ def _fmt_booking(b: models.ORBooking) -> dict:
         "time_range": f"{b.slot_start:02d}:00–{slot_end:02d}:00" if slot_end else "—",
         "hn": p.hn if p else "—",
         "patient_name": p.name if p else "—",
-        "surgical_procedure": r.surgical_procedure if r else "—",
+        "surgical_procedure": ((r.procedure_name or r.surgical_procedure) if r else "—"),
+        "procedure_name": r.procedure_name if r else None,
+        "planned_procedure": r.surgical_procedure if r else None,
         "surgeon": r.surgeon if r else "—",
         "status": r.status if r else "waiting",
     }
@@ -337,7 +339,7 @@ async def create_drug_preset(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    if current_user.role not in ("admin", "anesthesiologist"):
+    if current_user.role not in ("admin", "anesthesiologist", "pharmacy"):
         raise HTTPException(status_code=403, detail="Not authorized")
     name = (data.get("drug_name") or "").strip()
     if not name:
@@ -364,7 +366,7 @@ async def update_drug_preset(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    if current_user.role not in ("admin", "anesthesiologist"):
+    if current_user.role not in ("admin", "anesthesiologist", "pharmacy"):
         raise HTTPException(status_code=403, detail="Not authorized")
     preset = db.query(models.DrugPreset).filter(models.DrugPreset.id == preset_id).first()
     if not preset:
@@ -384,7 +386,7 @@ async def delete_drug_preset(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    if current_user.role not in ("admin", "anesthesiologist"):
+    if current_user.role not in ("admin", "anesthesiologist", "pharmacy"):
         raise HTTPException(status_code=403, detail="Not authorized")
     preset = db.query(models.DrugPreset).filter(models.DrugPreset.id == preset_id).first()
     if not preset:

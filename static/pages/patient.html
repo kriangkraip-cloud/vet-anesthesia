@@ -22,7 +22,7 @@
     <ul class="sidebar-nav">
       <li class="sidebar-section">Navigation</li>
       <li><a href="/dashboard"><span class="icon">📋</span>Dashboard</a></li>
-      <li><a href="/patient?mode=new" class="active"><span class="icon">➕</span>New Patient</a></li>
+      <li class="no-pharmacy"><a href="/patient?mode=new" class="active"><span class="icon">➕</span>New Patient</a></li>
     </ul>
   </nav>
 
@@ -134,6 +134,10 @@
           <label>Assistant / Nurse</label>
           <input type="text" id="assistant" placeholder="Assistant name">
         </div>
+        <div class="form-group">
+          <label>Appointment By</label>
+          <input type="text" id="appointment_by" placeholder="Who made the appointment" list="user-list">
+        </div>
       </div>
       <datalist id="user-list"></datalist>
     </div>
@@ -142,7 +146,7 @@
     <div class="card hidden" id="records-card">
       <div class="card-header">
         <h2 class="card-title">📋 Anesthetic Records</h2>
-        <button class="btn btn-primary btn-sm" id="new-record-btn">+ New Anesthetic Record</button>
+        <button class="btn btn-primary btn-sm no-pharmacy" id="new-record-btn">+ New Anesthetic Record</button>
       </div>
       <div id="records-list"></div>
     </div>
@@ -151,9 +155,9 @@
     <div class="sticky-save-bar">
       <span class="text-sm text-muted" id="form-hint">All fields marked * are required</span>
       <div class="flex gap-2">
-        <button class="btn btn-danger hidden" id="delete-btn" onclick="deletePatient()">🗑 Delete Patient</button>
+        <button class="btn btn-danger hidden no-pharmacy" id="delete-btn" onclick="deletePatient()">🗑 Delete Patient</button>
         <button class="btn btn-outline" onclick="window.location.href='/dashboard'">Cancel</button>
-        <button class="btn btn-primary" id="save-btn" onclick="savePatient()">💾 Save Patient</button>
+        <button class="btn btn-primary no-pharmacy" id="save-btn" onclick="savePatient()">💾 Save Patient</button>
       </div>
     </div>
   </main>
@@ -187,7 +191,7 @@ API.listUsers().then(users => {
 async function loadPatient(id) {
   try {
     currentPatient = await API.getPatient(id);
-    document.getElementById("page-title").textContent = `Edit Patient — ${currentPatient.hn}`;
+    document.getElementById("page-title").textContent = `${isPharmacy() ? "Patient" : "Edit Patient"} — ${currentPatient.hn}`;
     document.getElementById("page-subtitle").textContent = `${currentPatient.name} · ${currentPatient.species || ""}`;
     document.getElementById("save-btn").textContent = "💾 Update Patient";
     document.getElementById("delete-btn").classList.remove("hidden");
@@ -240,13 +244,13 @@ async function loadPatientRecords(patientId) {
       <tbody>${records.map(r => `
         <tr>
           <td>${r.record_date ? new Date(r.record_date).toLocaleDateString("en-GB") : "—"}</td>
-          <td>${r.surgical_procedure || "—"}</td>
+          <td>${r.procedure_name || r.surgical_procedure || "—"}</td>
           <td>${r.surgeon || "—"}</td>
           <td>${r.anesthesiologist || "—"}</td>
           <td><span class="badge badge-${r.status || "draft"}">${r.status || "draft"}</span></td>
           <td style="display:flex;gap:0.4rem;align-items:center">
             <a href="/record?id=${r.id}" class="btn btn-primary btn-sm">Open</a>
-            <button class="btn btn-outline btn-sm" onclick="deleteRecord(${r.id},'${(r.surgical_procedure||'this record').replace(/'/g,"\\'")}','${r.record_date||''}')" style="color:var(--danger);border-color:var(--danger)">delete</button>
+            <button class="btn btn-outline btn-sm no-pharmacy" onclick="deleteRecord(${r.id},'${(r.procedure_name||r.surgical_procedure||'this record').replace(/'/g,"\\'")}','${r.record_date||''}')" style="color:var(--danger);border-color:var(--danger)">delete</button>
           </td>
         </tr>`).join("")}
       </tbody>
@@ -276,6 +280,7 @@ async function createNewRecord(patientId) {
       surgeon: document.getElementById("surgeon").value || "",
       anesthesiologist: document.getElementById("anesthesiologist").value || "",
       assistant: document.getElementById("assistant").value || "",
+      appointment_by: document.getElementById("appointment_by").value || "",
       surgical_procedure: document.getElementById("surgical_procedure").value || "",
       diagnosis: document.getElementById("diagnosis").value || "",
       weight_at_record: parseFloat(document.getElementById("weight").value) || null,
@@ -323,6 +328,7 @@ async function savePatient() {
         surgeon: document.getElementById("surgeon").value || "",
         anesthesiologist: document.getElementById("anesthesiologist").value || "",
         assistant: document.getElementById("assistant").value || "",
+        appointment_by: document.getElementById("appointment_by").value || "",
         surgical_procedure: document.getElementById("surgical_procedure").value || "",
         diagnosis: document.getElementById("diagnosis").value || "",
         weight_at_record: data.weight,
@@ -337,6 +343,15 @@ async function savePatient() {
   } finally {
     document.getElementById("save-btn").disabled = false;
   }
+}
+
+// Pharmacy Staff cannot register or edit patients: the page is read-only for them
+if (isPharmacy()) {
+  if (!patientId) window.location.href = "/dashboard";
+  document.querySelectorAll("main input, main select, main textarea").forEach(el => { el.disabled = true; });
+  document.getElementById("page-title").textContent = "Patient Information";
+  document.getElementById("page-subtitle").textContent = "View only — Pharmacy Staff can edit drug information in the anesthetic record";
+  document.getElementById("form-hint").textContent = "View only";
 }
 
 // Load existing patient or set up new form

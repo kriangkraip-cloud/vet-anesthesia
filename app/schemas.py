@@ -252,6 +252,7 @@ class RecordCreate(BaseModel):
     surgeon: Optional[str] = None
     anesthesiologist: Optional[str] = None
     assistant: Optional[str] = None
+    appointment_by: Optional[str] = None
     o2_flow_rate: Optional[float] = None
     anesthetic_machine: Optional[str] = None
     breathing_system: Optional[str] = None
@@ -269,6 +270,7 @@ class RecordCreate(BaseModel):
     extubation_time: Optional[datetime] = None
     sternal_time: Optional[datetime] = None
     standing_time: Optional[datetime] = None
+    procedure_name: Optional[str] = None
     procedure_notes: Optional[str] = None
     sample_collection: Optional[str] = None
     postop_medications: Optional[str] = None
@@ -313,6 +315,7 @@ class RecordOut(BaseModel):
     surgeon: Optional[str]
     anesthesiologist: Optional[str]
     assistant: Optional[str]
+    appointment_by: Optional[str] = None
     o2_flow_rate: Optional[float]
     anesthetic_machine: Optional[str]
     breathing_system: Optional[str]
@@ -330,6 +333,7 @@ class RecordOut(BaseModel):
     extubation_time: Optional[datetime]
     sternal_time: Optional[datetime]
     standing_time: Optional[datetime]
+    procedure_name: Optional[str] = None
     procedure_notes: Optional[str]
     sample_collection: Optional[str]
     postop_medications: Optional[str]
@@ -350,3 +354,58 @@ class RecordOut(BaseModel):
     surgical_procedures: List[SurgicalProcedureOut] = []
     or_booking: Optional[ORBookingOut] = None
     procedure_images: List[ProcedureImageOut] = []
+
+
+# ── Drug stock (Pharmacy) ────────────────────────────────────────────────────
+
+class StockItemCreate(BaseModel):
+    name: str
+    unit: Optional[str] = "mL"
+    is_controlled: bool = False
+    manufacturer: Optional[str] = None
+    link_drug_name: Optional[str] = None
+    usage_basis: str = "volume_ml"          # volume_ml | dose_mg | dose_mcg | per_entry
+    usage_divisor: float = 1.0
+    track_start: Optional[date] = None
+    notes: Optional[str] = None
+    # optional opening balance, created together with the item
+    opening_qty: Optional[float] = None
+    opening_batch: Optional[str] = None
+
+
+class StockItemUpdate(BaseModel):
+    name: Optional[str] = None
+    unit: Optional[str] = None
+    is_controlled: Optional[bool] = None
+    manufacturer: Optional[str] = None
+    link_drug_name: Optional[str] = None
+    usage_basis: Optional[str] = None
+    usage_divisor: Optional[float] = None
+    track_start: Optional[date] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class StockTxCreate(BaseModel):
+    item_id: int
+    tx_type: str                            # opening | receive | dispense | adjust
+    tx_date: Optional[date] = None
+    quantity: float
+    batch_no: Optional[str] = None
+    manufacturer: Optional[str] = None
+    source: Optional[str] = None
+    patient_id: Optional[int] = None
+    dispensed_to: Optional[str] = None
+    note: Optional[str] = None
+
+
+class StockTxUpdate(BaseModel):
+    tx_type: Optional[str] = None
+    tx_date: Optional[date] = None
+    quantity: Optional[float] = None
+    batch_no: Optional[str] = None
+    manufacturer: Optional[str] = None
+    source: Optional[str] = None
+    patient_id: Optional[int] = None
+    dispensed_to: Optional[str] = None
+    note: Optional[str] = None

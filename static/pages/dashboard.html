@@ -24,7 +24,8 @@
     <ul class="sidebar-nav">
       <li class="sidebar-section">Navigation</li>
       <li><a href="/dashboard" class="active"><span class="icon">📋</span>Dashboard</a></li>
-      <li><a href="/patient?mode=new"><span class="icon">➕</span>New Patient</a></li>
+      <li class="no-pharmacy"><a href="/patient?mode=new"><span class="icon">➕</span>New Patient</a></li>
+      <li id="stock-link-li" class="hidden"><a href="/stock"><span class="icon">📦</span>Drug Stock</a></li>
       <li class="sidebar-section">System</li>
       <li><a href="#" id="users-link"><span class="icon">👥</span>Users</a></li>
       <li><a href="#" id="drug-presets-link"><span class="icon">💊</span>Drug Presets</a></li>
@@ -113,7 +114,7 @@
           <span id="duty-week-label" style="font-size:0.82rem;min-width:150px;text-align:center;font-weight:500">…</span>
           <button class="btn btn-ghost btn-sm btn-icon" onclick="dutyWeekNav(1)" title="Next week">›</button>
           <button class="btn btn-outline btn-sm" onclick="_dutyAnchor=_localISO(new Date());loadDuties()">Today</button>
-          <button class="btn btn-primary btn-sm" onclick="openDutyForm()" id="duty-add-btn">+ Add Duty</button>
+          <button class="btn btn-primary btn-sm no-pharmacy" onclick="openDutyForm()" id="duty-add-btn">+ Add Duty</button>
         </div>
       </div>
       <div id="duty-table-wrap" style="overflow-x:auto">
@@ -125,11 +126,11 @@
     <div class="card">
       <div class="card-header">
         <h2 class="card-title">📋 Anesthetic Records</h2>
-        <a href="/patient?mode=new" class="btn btn-primary"><span>➕</span> New Patient</a>
+        <a href="/patient?mode=new" class="btn btn-primary no-pharmacy"><span>➕</span> New Patient</a>
       </div>
 
       <div class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:center">
-        <input type="text" id="search-input" placeholder="Search HN, name, species, surgeon…"
+        <input type="text" id="search-input" placeholder="Search HN, name, species, surgeon, procedure…"
                style="max-width:280px; flex:1; min-width:140px" oninput="debounceSearch()"
                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         <select id="status-filter" onchange="loadRecords()" style="width:130px">
@@ -390,6 +391,7 @@
               <option value="staff">Staff</option>
               <option value="anesthesiologist">Anesthesiologist</option>
               <option value="surgeon">Surgeon</option>
+              <option value="pharmacy">Pharmacy Staff</option>
               <option value="admin">Admin</option>
             </select>
           </div>
@@ -409,7 +411,8 @@ if (!requireAuth()) void 0;
 const _exportedIds = new Set(JSON.parse(localStorage.getItem("exported_pdf_ids") || "[]"));
 
 const user = getUser();
-if (user) document.getElementById("user-label").textContent = `${user.full_name || user.username} (${user.role})`;
+if (user) document.getElementById("user-label").textContent = `${user.full_name || user.username} (${roleLabel(user.role)})`;
+if (canUseStock()) document.getElementById("stock-link-li").classList.remove("hidden");
 
 initSidebar();
 
@@ -458,6 +461,15 @@ document.addEventListener("click", e => {
     document.getElementById("patient-search-results").style.display = "none";
   }
 });
+
+// Procedure shown in lists = the procedure actually performed (Procedure tab);
+// until that is filled in, fall back to the planned procedure from Case Details (shown in italics).
+function procedureLabel(r) { return r.procedure_name || r.surgical_procedure || ""; }
+function procedureCell(r) {
+  if (r.procedure_name) return r.procedure_name;
+  if (r.surgical_procedure) return `<span style="font-style:italic;opacity:0.75" title="Planned procedure">${r.surgical_procedure}</span>`;
+  return "—";
+}
 
 function statusBadge(s) {
   const map = { waiting: "badge-waiting", ongoing: "badge-ongoing", complete: "badge-completed",
@@ -560,12 +572,12 @@ function schedRow(b, seq) {
   const hour = b.slot_start || 0;
   const periodColor = hour < 12 ? "#2563eb" : hour < 17 ? "#d97706" : "#7c3aed";
   const bg = seq % 2 === 0 ? "var(--bg-secondary)" : "var(--bg-card)";
-  return `<tr draggable="true" id="scard-${b.id}"
+  return `<tr draggable="${isPharmacy() ? "false" : "true"}" id="scard-${b.id}"
     ondragstart="event.dataTransfer.setData('bookingId','${b.id}')"
     ondragover="event.preventDefault();this.style.outline='2px solid var(--primary)'"
     ondragleave="this.style.outline=''"
     ondrop="event.preventDefault();this.style.outline='';swapBookings(event.dataTransfer.getData('bookingId'),'${b.id}')"
-    style="background:${bg};cursor:grab">
+    style="background:${bg};cursor:${isPharmacy() ? "default" : "grab"}">
     <td style="padding:0.3rem 0.5rem;text-align:center">
       <span style="background:${periodColor};color:#fff;border-radius:3px;padding:1px 5px;font-size:0.72rem;font-weight:700">${seq}</span>
     </td>
@@ -650,7 +662,9 @@ async function loadRecords() {
         (r.patient_name || "").toLowerCase().includes(q) ||
         (r.species || "").toLowerCase().includes(q) ||
         (r.surgeon || "").toLowerCase().includes(q) ||
-        (r.anesthesiologist || "").toLowerCase().includes(q)
+        (r.anesthesiologist || "").toLowerCase().includes(q) ||
+        (r.procedure_name || "").toLowerCase().includes(q) ||
+        (r.surgical_procedure || "").toLowerCase().includes(q)
       );
     }
     if (statusFilter) {
@@ -683,15 +697,15 @@ async function loadRecords() {
         <td data-label="Surgeon">${r.surgeon || "—"}</td>
         <td data-label="Date">${r.record_date ? new Date(r.record_date).toLocaleDateString("en-GB", { timeZone: "Asia/Bangkok" }) : "—"}</td>
         <td data-label="Procedure" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-            title="${r.surgical_procedure || ""}">${r.surgical_procedure || "—"}</td>
+            title="${procedureLabel(r).replace(/"/g,"&quot;")}">${procedureCell(r)}</td>
         <td data-label="Status">${statusBadge(r.status)}</td>
         <td data-label="Actions">
           <div class="flex gap-1" style="flex-wrap:wrap">
             <a href="/record?id=${r.id}" class="btn btn-primary btn-sm">Open</a>
-            <a href="/patient?id=${r.patient_id}" class="btn btn-outline btn-sm" title="Edit patient information">✏ Edit</a>
+            <a href="/patient?id=${r.patient_id}" class="btn btn-outline btn-sm no-pharmacy" title="Edit patient information">✏ Edit</a>
             <button id="pdf-btn-${r.id}" class="btn btn-sm ${_exportedIds.has(r.id) ? 'btn-outline' : 'btn-success'}" onclick="exportPDF(${r.id})" title="Export PDF">PDF</button>
             <button class="btn btn-outline btn-sm" onclick="showSummary(${r.id},'${(r.patient_name||"").replace(/'/g,"\\'")}','${r.hn||""}','${r.species||""}')" title="Quick summary" style="color:var(--primary);border-color:var(--primary)">∑ Summary</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteRecord(${r.id},'${(r.patient_name||r.hn||"").replace(/'/g,"\\'")}','${r.record_date||""}')" title="Delete this anesthetic record">🗑</button>
+            <button class="btn btn-danger btn-sm no-pharmacy" onclick="deleteRecord(${r.id},'${(r.patient_name||r.hn||"").replace(/'/g,"\\'")}','${r.record_date||""}')" title="Delete this anesthetic record">🗑</button>
           </div>
         </td>
       </tr>
@@ -734,7 +748,7 @@ async function loadUsers() {
       <tr>
         <td>${u.username}</td>
         <td>${u.full_name || "—"}</td>
-        <td><span class="badge badge-draft">${u.role}</span></td>
+        <td><span class="badge badge-draft">${roleLabel(u.role)}</span></td>
         <td>${u.is_active ? "✓ Active" : "✗ Inactive"}</td>
         <td><button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.username}')">Delete</button></td>
       </tr>
@@ -867,7 +881,7 @@ function renderDutyTable() {
           ${duty.duty_type ? `<div style="color:var(--text-muted);font-size:0.7rem">${duty.duty_type}</div>` : ""}
           ${duty.notes ? `<div style="font-size:0.68rem;margin-top:0.2rem;padding:0.15rem 0.3rem;background:rgba(var(--primary-rgb,14,116,144),0.08);border-left:2px solid var(--primary);border-radius:2px;white-space:pre-wrap;word-break:break-word;color:var(--text)">${duty.notes}</div>` : ""}
           ${duty.repeat_group_id ? `<div style="color:var(--primary);font-size:0.65rem">↻ Series</div>` : ""}
-          <button onclick="openDutyForm(_dutyMap[${duty.id}])"
+          <button class="no-pharmacy" onclick="openDutyForm(_dutyMap[${duty.id}])"
                   style="border:none;background:none;color:var(--primary);cursor:pointer;font-size:0.68rem;padding:1px 0;margin-top:1px;display:block">✏ Edit</button>
         </div>`;
       }).join("");
@@ -1208,7 +1222,9 @@ function buildSummaryHTML(rec, patientName, hn, species) {
     ${row("Body Weight", rec.weight_at_record ? rec.weight_at_record + " kg" : nr)}
     ${row("ASA Status", v(rec.asa_status))}
     ${row("Diagnosis", v(rec.diagnosis))}
-    ${row("Procedure", v(rec.surgical_procedure))}
+    ${row("Planned Procedure", v(rec.surgical_procedure))}
+    ${row("Procedure Performed", v(rec.procedure_name))}
+    ${row("Appointment By", v(rec.appointment_by))}
     ${row("Surgeon", v(rec.surgeon))}
     ${row("Anesthesiologist", v(rec.anesthesiologist))}
     ${row("Anesthesia Start", fmtDT(rec.anesthesia_start) ? v(fmtDT(rec.anesthesia_start)) : nr)}

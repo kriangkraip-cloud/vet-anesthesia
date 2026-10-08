@@ -76,6 +76,7 @@ class AnestheticRecord(Base):
     surgeon = Column(String(100))
     anesthesiologist = Column(String(100))
     assistant = Column(String(100))
+    appointment_by = Column(String(100))   # who made the appointment / booking
 
     # Equipment and quality
     o2_flow_rate = Column(Float)
@@ -96,6 +97,7 @@ class AnestheticRecord(Base):
     surgery_end = Column(DateTime)
 
     # Procedure notes (new Procedure tab)
+    procedure_name = Column(String(500))   # procedure actually performed
     procedure_notes = Column(Text)
     sample_collection = Column(Text)
     postop_medications = Column(Text)
@@ -341,4 +343,48 @@ class SurgeonDuty(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+    created_by = relationship("User", foreign_keys=[created_by_id])
+
+
+class DrugStockItem(Base):
+    """A drug tracked in the pharmacy stock ledger."""
+    __tablename__ = "drug_stock_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False, unique=True, index=True)  # incl. strength, e.g. "Fentanyl Patch 12 mcg/h"
+    unit = Column(String(30), default="mL")           # label shown in reports (Patch, ampule, mL ...)
+    is_controlled = Column(Boolean, default=False)    # Category 2 narcotic -> included in the official monthly report
+    manufacturer = Column(String(200))
+    link_drug_name = Column(String(100))              # drug name used in anesthetic records (DrugEntry.drug_name)
+    usage_basis = Column(String(20), default="volume_ml")  # volume_ml | dose_mg | dose_mcg | per_entry
+    usage_divisor = Column(Float, default=1.0)        # stock units used = basis quantity / usage_divisor
+    track_start = Column(Date)                        # record usage is only deducted from this date onward
+    is_active = Column(Boolean, default=True)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    transactions = relationship("DrugStockTransaction", back_populates="item", cascade="all, delete-orphan")
+
+
+class DrugStockTransaction(Base):
+    """Manual stock movement: opening balance / receive / dispense / adjustment."""
+    __tablename__ = "drug_stock_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("drug_stock_items.id"), nullable=False, index=True)
+    tx_date = Column(Date, nullable=False, index=True)
+    tx_type = Column(String(20), nullable=False)      # opening | receive | dispense | adjust
+    quantity = Column(Float, nullable=False)          # positive; for "adjust" the sign is meaningful
+    batch_no = Column(String(100))
+    manufacturer = Column(String(200))
+    source = Column(String(200))                      # "ได้มาจาก" (supplier)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=True)
+    dispensed_to = Column(String(300))                # "Name / HN" printed in the report
+    note = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    item = relationship("DrugStockItem", back_populates="transactions")
+    patient = relationship("Patient", foreign_keys=[patient_id])
     created_by = relationship("User", foreign_keys=[created_by_id])

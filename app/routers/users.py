@@ -43,8 +43,12 @@ async def update_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    if current_user.role != "admin" and current_user.id != user_id:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    if current_user.role != "admin":
+        if current_user.id != user_id:
+            raise HTTPException(status_code=403, detail="Permission denied")
+        # Non-admins may edit their own profile/password, but never their own role or active flag
+        if user_data.role is not None or user_data.is_active is not None:
+            raise HTTPException(status_code=403, detail="Only an admin can change role or active status")
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

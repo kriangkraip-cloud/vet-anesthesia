@@ -171,6 +171,8 @@
             <input type="text" id="anesthesiologist" placeholder="Anesthesiologist name" list="user-dl"></div>
           <div class="form-group"><label>Assistant / Nurse</label>
             <input type="text" id="assistant" placeholder="Assistant name"></div>
+          <div class="form-group"><label>Appointment By</label>
+            <input type="text" id="appointment_by" placeholder="Who made the appointment" list="user-dl"></div>
         </div>
         <datalist id="user-dl"></datalist>
       </div>
@@ -795,6 +797,12 @@
           <div id="template-btns" style="display:flex;gap:0.4rem;flex-wrap:wrap"></div>
         </div>
 
+        <div class="form-group mb-3">
+          <label>Procedure Name <span class="text-muted text-xs">(procedure actually performed)</span></label>
+          <input type="text" id="procedure_name" list="procedure-name-dl" placeholder="e.g. Ovariohysterectomy, Cystotomy, Mass removal…" autocomplete="off">
+          <datalist id="procedure-name-dl"></datalist>
+        </div>
+
         <div class="form-group">
           <label>Procedure Notes</label>
           <textarea id="procedure_notes" rows="12" placeholder="Record surgical procedure steps, findings, and notes…" style="font-family:monospace;font-size:0.88rem"></textarea>
@@ -1004,7 +1012,31 @@ async function loadRecord() {
 
     // Load procedure templates
     loadTemplates();
+
+    applyPharmacyMode();
   } catch (err) { toast("Failed to load record: " + err.message, "error"); }
+}
+
+// ── Pharmacy Staff: only drug information is editable ──────
+function applyPharmacyMode() {
+  if (!isPharmacy()) return;
+  const zones = [...document.querySelectorAll("#premed-list, #antibiotic-list, #induction-list, #local-list")];
+  const cri = document.getElementById("cri-drug")?.closest(".card");
+  if (cri) zones.push(cri);
+  const editableIds = new Set(PHARMACY_FIELDS);
+  const keepButton = el => el.tagName === "BUTTON" &&
+    /^(addDrugRow|switchTab|doExport)\(/.test(el.getAttribute("onclick") || "");
+  document.querySelectorAll("main input, main select, main textarea, main button").forEach(el => {
+    if (editableIds.has(el.id) || zones.some(z => z.contains(el)) || keepButton(el)) return;
+    el.disabled = true;
+  });
+  document.querySelectorAll("#edit-patient-btn").forEach(el => el.classList.add("no-pharmacy"));
+  const note = document.createElement("div");
+  note.className = "card mb-3";
+  note.style.cssText = "padding:0.6rem 1rem;border-left:3px solid var(--primary);font-size:0.85rem";
+  note.innerHTML = "💊 <strong>Pharmacy Staff mode</strong> — you can view the whole record and edit drug information only " +
+    "(Premed, Antibiotic, Induction, Local, CRI, current medications, recovery drugs). Everything else is read-only.";
+  document.querySelector("main").prepend(note);
 }
 
 function populateBanner() {
@@ -1031,10 +1063,12 @@ const RECORD_FIELDS = [
   "surgeon","anesthesiologist","assistant","o2_flow_rate","anesthetic_machine",
   "breathing_system","vaporizer_gas","airway_device","ett_size","intubation_note",
   "induction_complication","premed_quality","induction_quality",
-  "procedure_notes","sample_collection","postop_medications",
+  "appointment_by","procedure_name","procedure_notes","sample_collection","postop_medications",
   "recovery_quality","recovery_complications","postop_pain_management",
   "postop_monitoring","final_note","postop_plan","next_feeding","postop_temp",
 ];
+// Pharmacy Staff may only change these fields of the record itself (plus drug entries / CRI)
+const PHARMACY_FIELDS = ["current_medications","postop_pain_management"];
 const DATETIME_FIELDS = ["anesthesia_start","anesthesia_end","surgery_start","surgery_end",
                           "extubation_time","sternal_time","standing_time"];
 
@@ -1100,7 +1134,7 @@ function updateNextFeeding() {
   if (type) parts.push("Type: " + type);
   if (vol) parts.push("Volume: " + vol);
   document.getElementById("next_feeding").value = parts.join(" | ");
-  debounceSave();
+  scheduleSave();
 }
 
 // ── Status update ──────────────────────────────────────────
@@ -1145,10 +1179,12 @@ async function saveRecord() {
   const ind = document.getElementById("save-status");
   ind.textContent = "💾 Saving…";
   const data = {};
-  RECORD_FIELDS.forEach(f => { const el = document.getElementById(f); if (el) data[f] = el.value || null; });
-  // Always include current status so autosave never resets it
-  data.status = document.getElementById("status-select").value || record?.status || "waiting";
-  DATETIME_FIELDS.forEach(f => { const el = document.getElementById(f); if (el) data[f] = localDTtoISO(el.value); });
+  (isPharmacy() ? PHARMACY_FIELDS : RECORD_FIELDS).forEach(f => { const el = document.getElementById(f); if (el) data[f] = el.value || null; });
+  if (!isPharmacy()) {
+    // Always include current status so autosave never resets it
+    data.status = document.getElementById("status-select").value || record?.status || "waiting";
+    DATETIME_FIELDS.forEach(f => { const el = document.getElementById(f); if (el) data[f] = localDTtoISO(el.value); });
+  }
   ["weight_at_record","pcv","bun","creatinine","ast","alt","hr_pre","rr_pre","temp_pre","o2_flow_rate","ett_size"].forEach(f => {
     if (data[f]) data[f] = parseFloat(data[f]) || null;
   });
@@ -2095,6 +2131,8 @@ async function loadTemplates() {
       </span>`).join("");
     // Cache for insert
     window._templates = templates;
+    const dl = document.getElementById("procedure-name-dl");
+    if (dl) dl.innerHTML = templates.map(t => `<option value="${t.name.replace(/"/g, "&quot;")}">`).join("");
   } catch {}
 }
 
@@ -2105,6 +2143,8 @@ function insertTemplate(id) {
   if (!ta) return;
   const sep = ta.value ? "\n\n" : "";
   ta.value = ta.value + sep + tpl.content;
+  const nameEl = document.getElementById("procedure_name");
+  if (nameEl && !nameEl.value.trim()) nameEl.value = tpl.name;   // fill the procedure name when still empty
   ta.focus();
   scheduleSave();
   toast(`Template "${tpl.name}" inserted`, "success");

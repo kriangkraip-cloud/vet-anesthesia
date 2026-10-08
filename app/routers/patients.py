@@ -48,7 +48,7 @@ async def list_patients(
             "owner_name": p.owner_name,
             "record_id": latest_record.id if latest_record else None,
             "record_date": latest_record.record_date.isoformat() if latest_record and latest_record.record_date else None,
-            "surgical_procedure": latest_record.surgical_procedure if latest_record else None,
+            "surgical_procedure": (latest_record.procedure_name or latest_record.surgical_procedure) if latest_record else None,
             "surgeon": latest_record.surgeon if latest_record else None,
             "anesthesiologist": latest_record.anesthesiologist if latest_record else None,
             "status": latest_record.status if latest_record else None,

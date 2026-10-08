@@ -308,7 +308,8 @@ def _build_pdf(record: models.AnestheticRecord, recorder_name: str = "") -> io.B
         ("Owner", p.owner_name), ("Date", _fmt_date(record.record_date)),
         ("Surgeon", record.surgeon), ("Anesthesiologist", record.anesthesiologist),
         ("Assistant", record.assistant), ("Diagnosis", record.diagnosis),
-        ("Procedure", record.surgical_procedure), ("Status", record.status.upper()),
+        ("Planned Procedure", record.surgical_procedure), ("Procedure Performed", record.procedure_name),
+        ("Appointment By", record.appointment_by), ("Status", record.status.upper()),
     ], cols=2)
 
     # Pre-anesthetic eval
@@ -662,7 +663,9 @@ def _build_docx(record: models.AnestheticRecord, recorder_name: str = "") -> io.
     add_kv("Anesthesiologist", record.anesthesiologist)
     add_kv("Assistant", record.assistant)
     add_kv("Diagnosis", record.diagnosis)
-    add_kv("Procedure", record.surgical_procedure)
+    add_kv("Planned Procedure", record.surgical_procedure)
+    add_kv("Procedure Performed", record.procedure_name)
+    add_kv("Appointment By", record.appointment_by)
 
     add_heading("Pre-Anesthetic Evaluation", 1)
     add_kv("ASA Status", record.asa_status)

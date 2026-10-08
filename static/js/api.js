@@ -12,6 +12,17 @@ function getUser() {
   try { return JSON.parse(localStorage.getItem("vet_user") || "null"); } catch { return null; }
 }
 
+const ROLE_LABELS = {
+  admin: "Admin", anesthesiologist: "Anesthesiologist", surgeon: "Surgeon",
+  staff: "Staff", pharmacy: "Pharmacy Staff",
+};
+function roleLabel(role) { return ROLE_LABELS[role] || role || ""; }
+function isPharmacy() { return getUser()?.role === "pharmacy"; }
+function canUseStock() { const r = getUser()?.role; return r === "admin" || r === "pharmacy"; }
+
+// Pharmacy Staff can only edit drug information: hide the other write controls everywhere
+if (isPharmacy()) document.documentElement.classList.add("role-pharmacy");
+
 function logout() {
   localStorage.removeItem("vet_token");
   localStorage.removeItem("vet_user");
@@ -152,6 +163,22 @@ const API = {
   createDrugPreset: d => apiFetch("/api/drug-presets", { method: "POST", body: JSON.stringify(d) }),
   updateDrugPreset: (id, d) => apiFetch(`/api/drug-presets/${id}`, { method: "PUT", body: JSON.stringify(d) }),
   deleteDrugPreset: id => apiFetch(`/api/drug-presets/${id}`, { method: "DELETE" }),
+
+  // Drug stock (Pharmacy Staff / Admin)
+  listStockItems: params => {
+    const qs = new URLSearchParams(params || {}).toString();
+    return apiFetch(`/api/stock/items${qs ? "?" + qs : ""}`);
+  },
+  createStockItem: d => apiFetch("/api/stock/items", { method: "POST", body: JSON.stringify(d) }),
+  updateStockItem: (id, d) => apiFetch(`/api/stock/items/${id}`, { method: "PUT", body: JSON.stringify(d) }),
+  deleteStockItem: id => apiFetch(`/api/stock/items/${id}`, { method: "DELETE" }),
+  stockLedger: (id, params) => apiFetch(`/api/stock/items/${id}/ledger?${new URLSearchParams(params)}`),
+  createStockTx: d => apiFetch("/api/stock/transactions", { method: "POST", body: JSON.stringify(d) }),
+  updateStockTx: (id, d) => apiFetch(`/api/stock/transactions/${id}`, { method: "PUT", body: JSON.stringify(d) }),
+  deleteStockTx: id => apiFetch(`/api/stock/transactions/${id}`, { method: "DELETE" }),
+  stockUsage: params => apiFetch(`/api/stock/usage?${new URLSearchParams(params)}`),
+  exportNarcoticReport: params => apiFetch(`/api/stock/export/narcotic?${new URLSearchParams(params)}`),
+  exportDrugUsage: params => apiFetch(`/api/stock/export/usage?${new URLSearchParams(params)}`),
 
   // Surgeon Duty Schedule
   listDuties: params => {

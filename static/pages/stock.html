@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drug Stock — Animal Space Hospital</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .period { display:flex; gap:0.5rem 0.9rem; align-items:center; flex-wrap:wrap; font-size:0.85rem; }
+    .period label { display:inline-flex; align-items:center; gap:0.3rem; margin:0; font-weight:500; cursor:pointer; }
+    .period input[type="radio"], .inline-check input[type="checkbox"] { width:auto; margin:0; }
+    .period select, .period input[type="number"], .period input[type="date"] { width:auto; padding:0.3rem 0.5rem; }
+    .toolbar { display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap; margin-bottom:0.9rem; }
+    .toolbar input[type="text"], .toolbar select { width:auto; min-width:200px; }
+    .inline-check { display:inline-flex; align-items:center; gap:0.35rem; font-size:0.85rem; margin:0; font-weight:500; cursor:pointer; }
+    .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .neg { color:var(--danger); font-weight:700; }
+    .sum-row { display:flex; gap:0.75rem; flex-wrap:wrap; margin:0.2rem 0 0.9rem; }
+    .sum-box { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:0.45rem 0.9rem; min-width:130px; }
+    .sum-box .lbl { font-size:0.72rem; color:var(--text-muted); font-weight:600; }
+    .sum-box .val { font-size:1.15rem; font-weight:700; }
+    .table-wrap table { min-width:760px; }
+    td:first-child { min-width:150px; }
+    td, .pill { white-space:nowrap; }
+    td.wrap, td.wrap * { white-space:normal; }
+    .pill { display:inline-block; border-radius:10px; padding:0.05rem 0.5rem; font-size:0.72rem; font-weight:700; }
+    .pill-opening  { background:#e8edf2; color:#5a6a7a; }
+    .pill-receive  { background:#d1f0ea; color:#1a6b5c; }
+    .pill-dispense { background:#fde8ea; color:#b91c1c; }
+    .pill-adjust   { background:#fff3cd; color:#856404; }
+    .pill-record   { background:#dbeafe; color:#1d4ed8; }
+    .pill-ctrl     { background:#fde8ea; color:#b91c1c; }
+    .help { font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem; }
+    .acts { display:flex; gap:0.3rem; flex-wrap:wrap; justify-content:flex-end; }
+    .acts .btn { padding:0.2rem 0.55rem; font-size:0.75rem; }
+    .pick-list { border:1px solid var(--border); border-radius:var(--radius); max-height:170px; overflow-y:auto; background:var(--card); margin-top:0.25rem; }
+    .pick-list a { display:block; padding:0.4rem 0.7rem; cursor:pointer; border-bottom:1px solid var(--border); font-size:0.85rem; color:var(--text); text-decoration:none; }
+    .pick-list a:hover { background:var(--bg); }
+    .item-check { display:flex; align-items:center; gap:0.5rem; padding:0.3rem 0.2rem; margin:0; font-weight:500; cursor:pointer; }
+    .item-check input { width:auto; margin:0; }
+    .empty { text-align:center; padding:2rem; color:var(--text-muted); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <header class="app-header">
+    <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+    <a href="/dashboard" class="logo"><img src="/static/img/logo.png" alt="Animal Space Hospital" style="height:32px;width:auto;vertical-align:middle;margin-right:6px"> <span>Animal Space Hospital</span></a>
+    <div class="header-right">
+      <span class="text-sm text-muted" id="user-label"></span>
+      <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
+      <button class="btn btn-outline btn-sm" onclick="logout()">Sign Out</button>
+    </div>
+  </header>
+
+  <nav class="sidebar" id="sidebar">
+    <ul class="sidebar-nav">
+      <li class="sidebar-section">Navigation</li>
+      <li><a href="/dashboard"><span class="icon">📋</span>Dashboard</a></li>
+      <li class="no-pharmacy"><a href="/patient?mode=new"><span class="icon">➕</span>New Patient</a></li>
+      <li><a href="/stock" class="active"><span class="icon">📦</span>Drug Stock</a></li>
+      <li class="sidebar-section">System</li>
+      <li><a href="#" onclick="toggleTheme()"><span class="icon">🌙</span>Dark Mode</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <div class="flex items-center justify-between mb-3" style="flex-wrap:wrap;gap:0.5rem">
+      <div>
+        <h1 style="font-size:1.3rem;font-weight:700">📦 Drug Stock</h1>
+        <p class="text-sm text-muted">Receive and dispense drugs, check what is left, and review usage. Drugs given in anesthetic records are deducted automatically.</p>
+      </div>
+      <div class="flex gap-2" style="flex-wrap:wrap">
+        <button class="btn btn-success btn-sm" onclick="openNarcoticExport()">📊 Narcotic Report (Excel)</button>
+        <button class="btn btn-primary btn-sm" onclick="openItemModal()">+ New Drug</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-stock" onclick="showTab('stock')">📦 Stock</button>
+      <button class="tab-btn" id="tab-ledger" onclick="showTab('ledger')">📒 Ledger</button>
+      <button class="tab-btn" id="tab-usage" onclick="showTab('usage')">💉 Usage in Records</button>
+    </div>
+
+    <!-- ── Stock list ─────────────────────────────────────── -->
+    <div class="tab-panel active" id="panel-stock">
+      <div class="card">
+        <div class="toolbar">
+          <input type="text" id="stock-q" placeholder="Search drug, linked drug name, manufacturer…" oninput="debounce(loadItems)" autocomplete="off">
+          <label class="inline-check"><input type="checkbox" id="stock-inactive" onchange="loadItems()"> Show inactive</label>
+          <span class="text-sm text-muted" id="stock-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Drug</th><th>Unit</th><th class="num">On hand</th>
+              <th class="num">In (this month)</th><th class="num">Out (this month)</th>
+              <th>Linked record drug</th><th style="text-align:right">Actions</th>
+            </tr></thead>
+            <tbody id="stock-tbody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Ledger ─────────────────────────────────────────── -->
+    <div class="tab-panel" id="panel-ledger">
+      <div class="card">
+        <div class="toolbar">
+          <select id="ledger-item" onchange="loadLedger()" style="min-width:260px"></select>
+          <div class="period" id="ledger-period"></div>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-primary btn-sm" onclick="openTxModal('receive')">＋ Receive</button>
+          <button class="btn btn-danger btn-sm" onclick="openTxModal('dispense')">－ Dispense</button>
+          <button class="btn btn-outline btn-sm" onclick="openTxModal('adjust')">± Adjust</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-success btn-sm" onclick="exportLedgerForm()">📊 Export this drug (official form)</button>
+        </div>
+        <div class="sum-row" id="ledger-summary"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Date</th><th>Type</th><th>Source / Dispensed to</th><th>Batch</th>
+              <th class="num">In</th><th class="num">Out</th><th class="num">Balance</th><th style="text-align:right">Actions</th>
+            </tr></thead>
+            <tbody id="ledger-tbody"><tr><td colspan="8" class="empty">Select a drug</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Usage from records ─────────────────────────────── -->
+    <div class="tab-panel" id="panel-usage">
+      <div class="card">
+        <div class="toolbar">
+          <div class="period" id="usage-period"></div>
+          <input type="text" id="usage-q" placeholder="Filter by drug, HN or patient…" oninput="debounce(loadUsage)" autocomplete="off">
+          <span style="flex:1"></span>
+          <button class="btn btn-success btn-sm" onclick="exportUsage()">📊 Export usage (Excel)</button>
+        </div>
+        <h3 style="font-size:0.95rem;margin-bottom:0.4rem">Summary by drug</h3>
+        <div class="table-wrap mb-3">
+          <table>
+            <thead><tr><th>Drug</th><th class="num">Times given</th><th class="num">Total volume (mL)</th><th class="num">Total dose (mg)</th></tr></thead>
+            <tbody id="usage-summary"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <h3 style="font-size:0.95rem;margin-bottom:0.4rem">Every drug entry in the period</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>HN</th><th>Patient</th><th>Drug</th><th>Type</th><th>Dose</th><th class="num">Volume (mL)</th><th>Anesthesiologist</th><th></th></tr></thead>
+            <tbody id="usage-tbody"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ── Item modal ───────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="item-modal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <h3 id="item-modal-title">New Drug</h3>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('item-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="it-id">
+      <div class="form-grid form-grid-2">
+        <div class="form-group span-full">
+          <label>Drug name and strength <span class="required">*</span></label>
+          <input type="text" id="it-name" placeholder="e.g. Fentanyl Patch 12 mcg/h">
+        </div>
+        <div class="form-group">
+          <label>Unit <span class="required">*</span></label>
+          <input type="text" id="it-unit" list="unit-dl" placeholder="mL, ampule, vial, tablet, Patch…">
+          <datalist id="unit-dl"><option>mL</option><option>ampule</option><option>vial</option><option>tablet</option><option>capsule</option><option>Patch</option><option>bottle</option></datalist>
+        </div>
+        <div class="form-group">
+          <label>Manufacturer</label>
+          <input type="text" id="it-mfr" placeholder="e.g. Sandoz (Thailand) Limited">
+        </div>
+        <div class="form-group span-full">
+          <label class="inline-check"><input type="checkbox" id="it-ctrl"> Category 2 narcotic (included in the monthly narcotic report)</label>
+        </div>
+        <div class="form-group span-full">
+          <label>Linked drug name in anesthetic records</label>
+          <input type="text" id="it-link" list="link-dl" placeholder="Name as picked in Premed / Induction / CRI (leave empty if not given in records)">
+          <datalist id="link-dl"></datalist>
+          <div class="help">Entries with this drug name are deducted from stock automatically (matching ignores upper/lower case).</div>
+        </div>
+        <div class="form-group">
+          <label>Amount taken from each entry</label>
+          <select id="it-basis">
+            <option value="volume_ml">Volume given (mL)</option>
+            <option value="dose_mg">Total dose (mg)</option>
+            <option value="dose_mcg">Total dose (mcg)</option>
+            <option value="per_entry">1 per entry (patch, tablet…)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>1 stock unit = ? (of the amount above)</label>
+          <input type="number" id="it-div" min="0" step="any" value="1">
+          <div class="help">e.g. unit = ampule of 2 mL → choose Volume and enter 2.</div>
+        </div>
+        <div class="form-group">
+          <label>Count usage from</label>
+          <input type="date" id="it-start">
+          <div class="help">Earlier records are not deducted.</div>
+        </div>
+        <div class="form-group" id="it-open-wrap">
+          <label>Opening balance <span class="text-muted text-xs">(optional)</span></label>
+          <input type="number" id="it-open" min="0" step="any" placeholder="0">
+        </div>
+        <div class="form-group" id="it-batch-wrap">
+          <label>Opening batch / lot no.</label>
+          <input type="text" id="it-batch">
+        </div>
+        <div class="form-group span-full">
+          <label>Notes</label>
+          <textarea id="it-notes" rows="2"></textarea>
+        </div>
+        <div class="form-group span-full" id="it-active-wrap">
+          <label class="inline-check"><input type="checkbox" id="it-active" checked> Active (untick to hide this drug from lists)</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:0.5rem;justify-content:space-between;padding:0.9rem 1.25rem;border-top:1px solid var(--border)">
+      <button class="btn btn-danger btn-sm hidden" id="it-delete" onclick="deleteItem()">🗑 Delete</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-outline btn-sm" onclick="closeModal('item-modal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveItem()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Transaction modal ────────────────────────────────── -->
+<div class="modal-overlay hidden" id="tx-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <h3 id="tx-modal-title">Receive</h3>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('tx-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="tx-id">
+      <input type="hidden" id="tx-item">
+      <input type="hidden" id="tx-patient">
+      <p class="text-sm" style="margin-bottom:0.75rem"><strong id="tx-item-name"></strong></p>
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label>Type</label>
+          <select id="tx-type" onchange="syncTxFields()">
+            <option value="receive">Receive (in)</option>
+            <option value="dispense">Dispense (out)</option>
+            <option value="adjust">Adjustment (+/−)</option>
+            <option value="opening">Opening balance</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="tx-date">
+        </div>
+        <div class="form-group">
+          <label id="tx-qty-label">Quantity</label>
+          <input type="number" id="tx-qty" step="any">
+          <div class="help" id="tx-qty-help"></div>
+        </div>
+        <div class="form-group" id="tx-batch-wrap">
+          <label>Batch / lot no.</label>
+          <input type="text" id="tx-batch">
+        </div>
+        <div class="form-group span-full" id="tx-source-wrap">
+          <label>Received from (ได้มาจาก)</label>
+          <input type="text" id="tx-source" placeholder="Supplier / source">
+        </div>
+        <div class="form-group span-full" id="tx-mfr-wrap">
+          <label>Manufacturer</label>
+          <input type="text" id="tx-mfr">
+        </div>
+        <div class="form-group span-full hidden" id="tx-patient-wrap">
+          <label>Dispensed to — animal (HN or name)</label>
+          <input type="text" id="tx-patient-q" placeholder="Type HN or name to search…" oninput="searchPatient(this.value)" autocomplete="off">
+          <div class="pick-list hidden" id="tx-patient-results"></div>
+          <input type="text" id="tx-to" placeholder="Shown on the report, e.g. Bonny / HN12345" style="margin-top:0.4rem">
+        </div>
+        <div class="form-group span-full">
+          <label>Note</label>
+          <input type="text" id="tx-note">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:0.5rem;justify-content:flex-end;padding:0.9rem 1.25rem;border-top:1px solid var(--border)">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('tx-modal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveTx()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Narcotic report export modal ─────────────────────── -->
+<div class="modal-overlay hidden" id="nr-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3>📊 Narcotic Report — Category 2</h3>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('nr-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-sm text-muted" style="margin-bottom:0.75rem">One sheet per drug in the hospital's official “รายงานรับ จ่ายยาเสพติดให้โทษประเภท ๒” form.</p>
+      <div class="period" id="nr-period" style="margin-bottom:0.9rem"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">
+        <strong class="text-sm">Drugs to include</strong>
+        <span class="text-sm"><a href="#" onclick="nrSelect('ctrl');return false">Category 2 only</a> · <a href="#" onclick="nrSelect('all');return false">All</a> · <a href="#" onclick="nrSelect('none');return false">None</a></span>
+      </div>
+      <div id="nr-items" style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:0.4rem 0.6rem"></div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:0.5rem;justify-content:flex-end;padding:0.9rem 1.25rem;border-top:1px solid var(--border)">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('nr-modal')">Cancel</button>
+      <button class="btn btn-success btn-sm" onclick="downloadNarcotic()">⬇ Download Excel</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/static/js/api.js"></script>
+<script>
+if (!requireAuth()) void 0;
+if (!canUseStock()) window.location.href = "/dashboard";
+initSidebar();
+const user = getUser();
+if (user) document.getElementById("user-label").textContent = `${user.full_name || user.username} (${roleLabel(user.role)})`;
+
+// ── helpers ────────────────────────────────────────────────
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const TYPE_LABEL = { opening: "Opening", receive: "Received", dispense: "Dispensed", adjust: "Adjusted", record: "Anesthetic record" };
+const todayISO = () => nowLocalDT().slice(0, 10);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtD = iso => { if (!iso) return ""; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
+const fmtQ = n => (n === null || n === undefined || n === "") ? "" : String(Math.round(Number(n) * 1000) / 1000);
+let _debT; function debounce(fn) { clearTimeout(_debT); _debT = setTimeout(fn, 300); }
+
+function periodHTML(prefix, onchange) {
+  const now = todayISO();
+  const year = +now.slice(0, 4), month = +now.slice(5, 7);
+  return `
+    <label><input type="radio" name="${prefix}-mode" value="month" checked onchange="${onchange}"> Month</label>
+    <select id="${prefix}-month" onchange="${onchange}">${MONTHS.map((m, i) => `<option value="${i + 1}"${i + 1 === month ? " selected" : ""}>${m}</option>`).join("")}</select>
+    <input type="number" id="${prefix}-year" value="${year}" min="2000" max="2100" style="width:84px" onchange="${onchange}">
+    <label><input type="radio" name="${prefix}-mode" value="range" onchange="${onchange}"> Dates</label>
+    <input type="date" id="${prefix}-from" value="${now.slice(0, 8)}01" onchange="document.querySelector('input[name=${prefix}-mode][value=range]').checked=true;${onchange}">
+    <span>–</span>
+    <input type="date" id="${prefix}-to" value="${now}" onchange="document.querySelector('input[name=${prefix}-mode][value=range]').checked=true;${onchange}">`;
+}
+function getPeriod(prefix) {
+  const mode = document.querySelector(`input[name=${prefix}-mode]:checked`).value;
+  if (mode === "month") {
+    const y = String(document.getElementById(`${prefix}-year`).value).padStart(4, "0");
+    const m = String(document.getElementById(`${prefix}-month`).value).padStart(2, "0");
+    return { month: `${y}-${m}` };
+  }
+  const from = document.getElementById(`${prefix}-from`).value, to = document.getElementById(`${prefix}-to`).value;
+  if (!from || !to) { toast("Choose both start and end dates", "warning"); return null; }
+  if (from > to) { toast("Start date is after the end date", "warning"); return null; }
+  return { date_from: from, date_to: to };
+}
+const periodStamp = p => p.month || `${p.date_from}_to_${p.date_to}`;
+
+document.getElementById("ledger-period").innerHTML = periodHTML("ledger", "loadLedger()");
+document.getElementById("usage-period").innerHTML = periodHTML("usage", "loadUsage()");
+document.getElementById("nr-period").innerHTML = periodHTML("nr", "");
+
+function activatePanel(id) {
+  ["stock", "ledger", "usage"].forEach(t => {
+    document.getElementById(`panel-${t}`).classList.toggle("active", t === id);
+    document.getElementById(`tab-${t}`).classList.toggle("active", t === id);
+  });
+}
+function showTab(id) {
+  activatePanel(id);
+  if (id === "stock") loadItems();
+  if (id === "ledger") { fillItemSelect(); loadLedger(); }
+  if (id === "usage") loadUsage();
+}
+
+// ── stock list ─────────────────────────────────────────────
+let items = [];
+async function loadItems() {
+  const q = document.getElementById("stock-q").value.trim();
+  const inactive = document.getElementById("stock-inactive").checked;
+  try {
+    items = await API.listStockItems({ ...(q ? { q } : {}), include_inactive: inactive });
+    renderItems();
+  } catch (e) { toast(e.message, "error"); }
+}
+function renderItems() {
+  document.getElementById("stock-count").textContent = `${items.length} drug${items.length === 1 ? "" : "s"}`;
+  const tb = document.getElementById("stock-tbody");
+  if (!items.length) { tb.innerHTML = `<tr><td colspan="7" class="empty">No drugs yet. Click “+ New Drug” to add the first one.</td></tr>`; return; }
+  tb.innerHTML = items.map(i => `
+    <tr style="${i.is_active ? "" : "opacity:0.55"}">
+      <td class="wrap" style="min-width:210px"><strong>${esc(i.name)}</strong>
+        ${i.is_controlled ? ' <span class="pill pill-ctrl" title="Category 2 narcotic">Cat. 2</span>' : ""}
+        ${i.is_active ? "" : ' <span class="pill pill-opening">inactive</span>'}
+        ${i.unknown_usage ? `<div class="help" style="color:var(--warning)">⚠ ${i.unknown_usage} record entr${i.unknown_usage === 1 ? "y" : "ies"} this month without an amount</div>` : ""}</td>
+      <td>${esc(i.unit)}</td>
+      <td class="num ${i.balance <= 0 ? "neg" : ""}"><strong>${fmtQ(i.balance)}</strong></td>
+      <td class="num">${fmtQ(i.month_in)}</td>
+      <td class="num">${fmtQ(i.month_out)}</td>
+      <td class="text-sm">${i.link_drug_name ? esc(i.link_drug_name) : '<span class="text-muted">—</span>'}</td>
+      <td><div class="acts">
+        <button class="btn btn-primary" onclick="openTxModal('receive',${i.id})">＋ Receive</button>
+        <button class="btn btn-danger" onclick="openTxModal('dispense',${i.id})">－ Dispense</button>
+        <button class="btn btn-outline" onclick="openLedger(${i.id})">📒 Ledger</button>
+        <button class="btn btn-outline" onclick="openItemModal(${i.id})">✏ Edit</button>
+      </div></td>
+    </tr>`).join("");
+}
+
+// ── item modal ─────────────────────────────────────────────
+async function loadPresetNames() {
+  try {
+    const presets = await API.listDrugPresets();
+    document.getElementById("link-dl").innerHTML = presets.map(p => `<option value="${esc(p.drug_name)}">`).join("");
+  } catch {}
+}
+function openItemModal(id) {
+  const it = id ? items.find(x => x.id === id) : null;
+  document.getElementById("item-modal-title").textContent = it ? `Edit — ${it.name}` : "New Drug";
+  document.getElementById("it-id").value = it?.id || "";
+  document.getElementById("it-name").value = it?.name || "";
+  document.getElementById("it-unit").value = it?.unit || "mL";
+  document.getElementById("it-mfr").value = it?.manufacturer || "";
+  document.getElementById("it-ctrl").checked = !!it?.is_controlled;
+  document.getElementById("it-link").value = it?.link_drug_name || "";
+  document.getElementById("it-basis").value = it?.usage_basis || "volume_ml";
+  document.getElementById("it-div").value = it?.usage_divisor ?? 1;
+  document.getElementById("it-start").value = it?.track_start || todayISO();
+  document.getElementById("it-notes").value = it?.notes || "";
+  document.getElementById("it-active").checked = it ? it.is_active : true;
+  document.getElementById("it-open").value = "";
+  document.getElementById("it-batch").value = "";
+  ["it-open-wrap", "it-batch-wrap"].forEach(w => document.getElementById(w).classList.toggle("hidden", !!it));
+  document.getElementById("it-active-wrap").classList.toggle("hidden", !it);
+  document.getElementById("it-delete").classList.toggle("hidden", !it);
+  openModal("item-modal");
+}
+async function saveItem() {
+  const id = document.getElementById("it-id").value;
+  const num = v => (v === "" ? null : parseFloat(v));
+  const data = {
+    name: document.getElementById("it-name").value.trim(),
+    unit: document.getElementById("it-unit").value.trim(),
+    manufacturer: document.getElementById("it-mfr").value.trim() || null,
+    is_controlled: document.getElementById("it-ctrl").checked,
+    link_drug_name: document.getElementById("it-link").value.trim() || null,
+    usage_basis: document.getElementById("it-basis").value,
+    usage_divisor: num(document.getElementById("it-div").value) || 1,
+    track_start: document.getElementById("it-start").value || null,
+    notes: document.getElementById("it-notes").value.trim() || null,
+  };
+  if (!data.name) { toast("Drug name is required", "warning"); return; }
+  if (!data.unit) { toast("Unit is required", "warning"); return; }
+  try {
+    if (id) {
+      data.is_active = document.getElementById("it-active").checked;
+      await API.updateStockItem(id, data);
+    } else {
+      data.opening_qty = num(document.getElementById("it-open").value);
+      data.opening_batch = document.getElementById("it-batch").value.trim() || null;
+      await API.createStockItem(data);
+    }
+    closeModal("item-modal");
+    toast("Saved", "success");
+    loadItems();
+  } catch (e) { toast(e.message, "error"); }
+}
+async function deleteItem() {
+  const id = document.getElementById("it-id").value;
+  if (!id || !confirm("Delete this drug from the stock list?")) return;
+  try {
+    await API.deleteStockItem(id);
+    closeModal("item-modal");
+    toast("Deleted", "success");
+    loadItems();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+// ── ledger ─────────────────────────────────────────────────
+let ledger = null;
+function fillItemSelect(selectId) {
+  const sel = document.getElementById("ledger-item");
+  const keep = selectId || sel.value;
+  sel.innerHTML = items.length
+    ? items.map(i => `<option value="${i.id}">${esc(i.name)}${i.is_active ? "" : " (inactive)"}</option>`).join("")
+    : `<option value="">— no drugs —</option>`;
+  if (keep && items.some(i => String(i.id) === String(keep))) sel.value = keep;
+}
+function openLedger(id) {
+  activatePanel("ledger");
+  fillItemSelect(id);
+  loadLedger();
+}
+async function loadLedger() {
+  const id = document.getElementById("ledger-item").value;
+  const tb = document.getElementById("ledger-tbody");
+  if (!id) { tb.innerHTML = `<tr><td colspan="8" class="empty">Select a drug</td></tr>`; document.getElementById("ledger-summary").innerHTML = ""; return; }
+  const p = getPeriod("ledger");
+  if (!p) return;
+  try {
+    ledger = await API.stockLedger(id, p);
+    renderLedger();
+  } catch (e) { toast(e.message, "error"); }
+}
+function renderLedger() {
+  const L = ledger, u = esc(L.unit);
+  document.getElementById("ledger-summary").innerHTML = [
+    ["Carried forward", L.tracking ? fmtQ(L.carried) : "—"],
+    ["Received", fmtQ(L.total_opening + L.total_in)],
+    ["Dispensed / used", fmtQ(L.total_out)],
+    ["Balance at end", L.tracking ? fmtQ(L.closing) : "—"],
+  ].map(([l, v]) => `<div class="sum-box"><div class="lbl">${l}</div><div class="val">${v} <span style="font-size:0.75rem;font-weight:500">${v === "—" ? "" : u}</span></div></div>`).join("")
+    + (L.tracking ? "" : `<div class="help" style="align-self:center">No opening balance or receipt recorded yet — balances stay blank until you add one.</div>`);
+
+  const tb = document.getElementById("ledger-tbody");
+  const rows = [];
+  if (L.tracking) rows.push(`<tr style="background:var(--bg)"><td>${fmtD(L.date_from)}</td><td><span class="pill pill-opening">Carried forward</span></td><td colspan="4"></td><td class="num"><strong>${fmtQ(L.carried)}</strong></td><td></td></tr>`);
+  L.rows.forEach(r => {
+    const inQ = (r.qty_opening || 0) + (r.qty_in || 0);
+    const detail = r.kind === "record"
+      ? `${esc(r.dispensed_to)} <span class="text-muted text-xs">· anesthetic record</span>${r.qty_unknown ? ' <span style="color:var(--warning)" title="This drug entry has no volume/dose, so nothing was deducted">⚠ no amount</span>' : ""}`
+      : [r.source, r.dispensed_to, r.note].filter(Boolean).map(esc).join(" · ");
+    const acts = r.kind === "record"
+      ? `<a class="btn btn-outline" href="/record?id=${r.record_id}">Open record</a>`
+      : `<button class="btn btn-outline" onclick="openTxModal(null,null,${r.tx_id})">✏</button><button class="btn btn-danger" onclick="deleteTx(${r.tx_id})">🗑</button>`;
+    rows.push(`<tr>
+      <td>${fmtD(r.date)}</td>
+      <td><span class="pill pill-${r.kind}">${TYPE_LABEL[r.kind]}</span></td>
+      <td class="wrap" style="min-width:180px">${detail || '<span class="text-muted">—</span>'}</td>
+      <td class="text-sm">${esc(r.batch_no || "")}</td>
+      <td class="num">${inQ ? fmtQ(inQ) : ""}</td>
+      <td class="num">${r.qty_out ? fmtQ(r.qty_out) : ""}</td>
+      <td class="num ${L.tracking && r.balance < 0 ? "neg" : ""}">${L.tracking ? fmtQ(r.balance) : ""}</td>
+      <td><div class="acts">${acts}</div></td>
+    </tr>`);
+  });
+  tb.innerHTML = rows.length ? rows.join("") : `<tr><td colspan="8" class="empty">No movements in this period.</td></tr>`;
+}
+async function exportLedgerForm() {
+  const id = document.getElementById("ledger-item").value;
+  const p = getPeriod("ledger");
+  if (!id || !p) return;
+  await downloadExcel(() => API.exportNarcoticReport({ ...p, item_ids: id }), `narcotic_report_${periodStamp(p)}.xlsx`);
+}
+
+// ── transaction modal ──────────────────────────────────────
+async function openTxModal(type, itemId, txId) {
+  let tx = null;
+  if (txId) {
+    tx = (ledger?.rows || []).find(r => r.tx_id === txId);
+    itemId = ledger.item_id;
+    type = tx.kind;
+  }
+  itemId = itemId || document.getElementById("ledger-item").value;
+  const item = items.find(i => String(i.id) === String(itemId));
+  if (!item) { toast("Choose a drug first", "warning"); return; }
+  document.getElementById("tx-id").value = txId || "";
+  document.getElementById("tx-item").value = item.id;
+  document.getElementById("tx-item-name").textContent = `${item.name} (${item.unit})`;
+  document.getElementById("tx-type").value = type;
+  document.getElementById("tx-modal-title").textContent = txId ? "Edit movement" : "New movement";
+  document.getElementById("tx-date").value = tx ? tx.date : todayISO();
+  const qty = tx ? (tx.kind === "dispense" ? tx.qty_out : (tx.kind === "adjust" ? (tx.qty_in || -tx.qty_out) : tx.qty_opening + tx.qty_in)) : "";
+  document.getElementById("tx-qty").value = qty;
+  document.getElementById("tx-batch").value = tx?.batch_no || "";
+  document.getElementById("tx-source").value = (tx && tx.kind !== "adjust" ? tx.source : "") || "";
+  document.getElementById("tx-mfr").value = tx?.manufacturer || "";
+  document.getElementById("tx-patient").value = tx?.patient_id || "";
+  document.getElementById("tx-patient-q").value = "";
+  document.getElementById("tx-to").value = tx?.dispensed_to || "";
+  document.getElementById("tx-note").value = tx?.note || "";
+  document.getElementById("tx-patient-results").classList.add("hidden");
+  syncTxFields();
+  openModal("tx-modal");
+}
+function syncTxFields() {
+  const t = document.getElementById("tx-type").value;
+  const show = (id, on) => document.getElementById(id).classList.toggle("hidden", !on);
+  show("tx-source-wrap", t === "receive");
+  show("tx-mfr-wrap", t === "receive" || t === "opening");
+  show("tx-batch-wrap", t !== "adjust");
+  show("tx-patient-wrap", t === "dispense");
+  document.getElementById("tx-qty-label").textContent =
+    { receive: "Quantity received", dispense: "Quantity dispensed", adjust: "Adjustment (+ adds, − removes)", opening: "Opening balance" }[t];
+  document.getElementById("tx-qty-help").textContent =
+    t === "adjust" ? "Use for corrections, e.g. −1 for a broken ampule." :
+    t === "dispense" ? "Drugs given in anesthetic records are deducted automatically — only add manual dispensing here (e.g. patches sent home)." : "";
+  if (t === "adjust") document.getElementById("tx-qty").removeAttribute("min"); else document.getElementById("tx-qty").setAttribute("min", "0");
+}
+let _patT;
+function searchPatient(q) {
+  clearTimeout(_patT);
+  const box = document.getElementById("tx-patient-results");
+  if (!q.trim()) { box.classList.add("hidden"); return; }
+  _patT = setTimeout(async () => {
+    try {
+      const list = await API.listPatients(q.trim());
+      box.innerHTML = list.slice(0, 12).map(p =>
+        `<a onclick="pickPatient(${p.id},'${esc(p.name).replace(/'/g, "\\'")}','${esc(p.hn).replace(/'/g, "\\'")}')"><strong>${esc(p.hn)}</strong> — ${esc(p.name)} <span class="text-muted text-xs">${esc([p.species, p.owner_name].filter(Boolean).join(" · "))}</span></a>`
+      ).join("") || `<a style="cursor:default">No patients found</a>`;
+      box.classList.remove("hidden");
+    } catch {}
+  }, 250);
+}
+function pickPatient(id, name, hn) {
+  document.getElementById("tx-patient").value = id;
+  document.getElementById("tx-to").value = `${name} / ${hn}`;
+  document.getElementById("tx-patient-q").value = "";
+  document.getElementById("tx-patient-results").classList.add("hidden");
+}
+async function saveTx() {
+  const id = document.getElementById("tx-id").value;
+  const type = document.getElementById("tx-type").value;
+  const qty = parseFloat(document.getElementById("tx-qty").value);
+  if (isNaN(qty) || qty === 0 || (type !== "adjust" && qty < 0)) { toast("Enter a valid quantity", "warning"); return; }
+  const val = f => document.getElementById(f).value.trim() || null;
+  const data = {
+    tx_type: type, tx_date: document.getElementById("tx-date").value || todayISO(), quantity: qty,
+    batch_no: type === "adjust" ? null : val("tx-batch"),
+    manufacturer: (type === "receive" || type === "opening") ? val("tx-mfr") : null,
+    source: type === "receive" ? val("tx-source") : null,
+    patient_id: type === "dispense" ? (parseInt(document.getElementById("tx-patient").value) || null) : null,
+    dispensed_to: type === "dispense" ? val("tx-to") : null,
+    note: val("tx-note"),
+  };
+  try {
+    if (id) await API.updateStockTx(id, data);
+    else await API.createStockTx({ ...data, item_id: parseInt(document.getElementById("tx-item").value) });
+    closeModal("tx-modal");
+    toast("Saved", "success");
+    await loadItems();
+    if (document.getElementById("panel-ledger").classList.contains("active")) loadLedger();
+  } catch (e) { toast(e.message, "error"); }
+}
+async function deleteTx(id) {
+  if (!confirm("Delete this stock movement?")) return;
+  try {
+    await API.deleteStockTx(id);
+    toast("Deleted", "success");
+    await loadItems();
+    loadLedger();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+// ── usage in anesthetic records ────────────────────────────
+let usage = null;
+async function loadUsage() {
+  const p = getPeriod("usage");
+  if (!p) return;
+  const q = document.getElementById("usage-q").value.trim();
+  try {
+    usage = await API.stockUsage({ ...p, ...(q ? { q } : {}) });
+    document.getElementById("usage-summary").innerHTML = usage.summary.length
+      ? usage.summary.map(s => `<tr><td><strong>${esc(s.drug_name)}</strong></td><td class="num">${s.count}</td><td class="num">${fmtQ(s.volume_ml)}</td><td class="num">${fmtQ(s.dose_mg)}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="empty">No drugs given in this period.</td></tr>`;
+    document.getElementById("usage-tbody").innerHTML = usage.rows.length
+      ? usage.rows.map(r => `<tr>
+          <td>${fmtD(r.date)}${r.time ? ` <span class="text-muted text-xs">${r.time}</span>` : ""}</td>
+          <td><strong>${esc(r.hn)}</strong></td><td>${esc(r.patient_name)}</td>
+          <td>${esc(r.drug_name)}</td><td class="text-sm">${esc(r.entry_type)}</td><td class="text-sm">${esc(r.dose)}</td>
+          <td class="num">${fmtQ(r.volume_ml)}</td><td class="text-sm">${esc(r.anesthesiologist || "")}</td>
+          <td><a class="btn btn-outline btn-sm" href="/record?id=${r.record_id}" style="padding:0.15rem 0.5rem;font-size:0.75rem">Open</a></td></tr>`).join("")
+      : `<tr><td colspan="9" class="empty">No entries.</td></tr>`;
+  } catch (e) { toast(e.message, "error"); }
+}
+async function exportUsage() {
+  const p = getPeriod("usage");
+  if (!p) return;
+  const q = document.getElementById("usage-q").value.trim();
+  await downloadExcel(() => API.exportDrugUsage({ ...p, ...(q ? { q } : {}) }), `drug_usage_${periodStamp(p)}.xlsx`);
+}
+
+// ── narcotic report (official form) ────────────────────────
+async function openNarcoticExport() {
+  if (!items.length) await loadItems();
+  document.getElementById("nr-items").innerHTML = items.filter(i => i.is_active).map(i =>
+    `<label class="item-check"><input type="checkbox" value="${i.id}" data-ctrl="${i.is_controlled ? 1 : 0}" ${i.is_controlled ? "checked" : ""}> ${esc(i.name)} ${i.is_controlled ? '<span class="pill pill-ctrl">Cat. 2</span>' : ""}</label>`
+  ).join("") || `<div class="empty">No drugs yet.</div>`;
+  openModal("nr-modal");
+}
+function nrSelect(mode) {
+  document.querySelectorAll("#nr-items input[type=checkbox]").forEach(c => {
+    c.checked = mode === "all" || (mode === "ctrl" && c.dataset.ctrl === "1");
+  });
+}
+async function downloadNarcotic() {
+  const p = getPeriod("nr");
+  if (!p) return;
+  const ids = [...document.querySelectorAll("#nr-items input:checked")].map(c => c.value);
+  if (!ids.length) { toast("Select at least one drug", "warning"); return; }
+  await downloadExcel(() => API.exportNarcoticReport({ ...p, item_ids: ids.join(",") }), `narcotic_report_${periodStamp(p)}.xlsx`);
+  closeModal("nr-modal");
+}
+async function downloadExcel(fetcher, filename) {
+  try {
+    toast("Preparing Excel file…", "info");
+    downloadBlob(await fetcher(), filename);
+    toast("Excel downloaded", "success");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+loadPresetNames();
+loadItems();
+</script>
+</body>
+</html>

@@ -747,3 +747,16 @@ tbody td { padding: 0.6rem 0.75rem; vertical-align: middle; }
   color: var(--text-muted);
   margin-bottom: 0.75rem;
 }
+
+
+/* ── Role restrictions ───────────────────────────────────── */
+/* Pharmacy Staff may only edit drug information; hide every other write control */
+.role-pharmacy .no-pharmacy { display: none !important; }
+.pharm-locked { opacity: 0.6; }
+
+input:disabled, select:disabled, textarea:disabled {
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.85;
+}
