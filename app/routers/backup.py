@@ -2,9 +2,9 @@ import os
 import shutil
 import tempfile
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
-from .. import models, auth
+from .. import models, auth, storage
 from ..database import DB_PATH, engine, SQLALCHEMY_DATABASE_URL
 
 _is_sqlite = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
@@ -120,3 +120,24 @@ async def backup_info(_: models.User = Depends(_admin_only)):
         "size_kb": round(size / 1024, 1),
         "last_modified": datetime.fromtimestamp(mtime).isoformat() if mtime else None,
     }
+
+
+# Procedure photos are NOT part of the .db backup. These let an admin put them back
+# (scripts/backup_images.py downloads them, scripts/restore_images.py uploads them here).
+_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"}
+
+
+@router.put("/images/{record_id}/{filename}")
+async def restore_image(
+    record_id: int,
+    filename: str,
+    request: Request,
+    _: models.User = Depends(_admin_only),
+):
+    if os.path.basename(filename) != filename or os.path.splitext(filename)[1].lower() not in _IMAGE_EXTS:
+        raise HTTPException(status_code=400, detail="Invalid image filename")
+    content = await request.body()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty body")
+    storage.save_file(storage.image_key(record_id, filename), content)
+    return {"ok": True, "bytes": len(content)}
